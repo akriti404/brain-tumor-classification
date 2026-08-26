@@ -1,0 +1,74 @@
+# =====================================================================
+# Master configuration for the Parameter-Efficient Hybrid Quantum-Classical
+# Brain Tumor MRI Classification project.
+#
+# Point `data.root` at the real dataset directory (ImageFolder layout:
+# root/<class_name>/*.jpg) — e.g. the Kaggle "Brain Tumor MRI Dataset"
+# (masoudnickparvar/brain-tumor-mri-dataset, 4 classes: glioma, meningioma,
+# notumor, pituitary). Nothing else needs to change to run on real data.
+# =====================================================================
+
+project:
+  name: "hybrid-qcnn-brain-tumor"
+  seed: 42
+  seeds_for_stats: [42, 1, 7]   # multiple seeds for mean +/- std reporting
+  device: "auto"                # "auto" | "cpu" | "cuda"
+  results_dir: "results"
+
+data:
+  root: "data/raw"              # ImageFolder layout: root/<class>/*.jpg
+  synthetic_fallback: true      # if root has no data, generate a small
+                                 # synthetic placeholder set (see data/synthetic_data_generator.py)
+  image_size: 96                # resized square input size
+  channels: 3
+  val_frac: 0.15
+  test_frac: 0.15
+  patient_level_split: true     # patient-level split if patient IDs are inferable, else stratified image-level
+  batch_size: 16
+  num_workers: 0        # sandbox is CPU-only with limited cores; raise this on real hardware
+  augmentation:
+    horizontal_flip: true
+    rotation_degrees: 10
+    brightness_jitter: 0.1
+  class_imbalance_strategy: "weighted_sampler"  # "weighted_sampler" | "class_weighted_loss" | "none"
+
+classical_backbone:
+  architecture: "mobilenet_v2"   # "simple_cnn" | "resnet18" | "mobilenet_v2"
+  pretrained: false  # set true on real hardware with internet access to download ImageNet weights;
+                      # this sandbox's network allowlist blocks download.pytorch.org (verified: HTTP 403)
+  freeze_backbone: false
+  feature_dim: 1280              # output of backbone before reduction head
+  reduced_dim: 8                 # dimensionality reduction target -> quantum input
+
+quantum:
+  framework: "pennylane"
+  n_qubits: 4
+  n_layers: 2
+  encoding: "angle"              # "angle" | "amplitude"
+  entanglement: "circular"       # "circular" | "linear" | "full"
+  data_reuploading: true
+  diff_method: "backprop"        # fast simulator-friendly gradient
+  device_name: "default.qubit"
+
+training:
+  epochs: 3                # smoke-test scale for CPU sandbox; raise for real runs
+  lr: 0.001
+  optimizer: "adam"
+  weight_decay: 0.0001
+  scheduler: "cosine"
+  early_stopping_patience: 5
+  grad_clip: 1.0
+
+baselines:
+  - simple_cnn
+  - resnet18
+  - mobilenet_v2
+  - classical_proposed   # classical-only version of the proposed architecture (no VQC)
+
+evaluation:
+  metrics: ["accuracy", "precision", "recall", "f1_macro", "f1_weighted", "roc_auc_ovr", "specificity"]
+  n_runs_for_stats: 3
+
+logging:
+  save_checkpoints: true
+  log_every_n_steps: 10
