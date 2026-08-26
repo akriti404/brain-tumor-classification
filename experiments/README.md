@@ -313,13 +313,9 @@ All experimental scripts require the base project dependencies plus:
    - Process fewer samples in explainability scripts
    - Use smaller datasets for initial testing
 
-## Tips for Review Panel Presentation
 
-1. **Start with smoke tests**: Run experiments with reduced parameters first
-2. **Use consistent seeds**: Maintain seed consistency across all experiments
-3. **Document everything**: Keep track of configuration changes
-4. **Generate visualizations early**: Ensure plotting functions work with your data
-5. **Validate statistical power**: Ensure sufficient seeds for statistical tests
+
+
 
 ## Integration with Member 1 & 2 Work
 
