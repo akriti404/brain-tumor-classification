@@ -12,13 +12,14 @@ from models.quantum import VariationalQuantumLayer
 class HybridQCNN(nn.Module):
     def __init__(self, n_classes: int, backbone_arch: str, pretrained: bool, freeze_backbone: bool,
                  n_qubits: int, n_layers: int, entanglement: str, data_reuploading: bool,
-                 diff_method: str, device_name: str):
+                 diff_method: str, device_name: str, noise_type: str = "ideal", noise_prob: float = 0.0):
         super().__init__()
         self.extractor = LightweightFeatureExtractor(backbone_arch, pretrained, freeze_backbone)
         self.reducer = DimensionalityReducer(self.extractor.out_dim, n_qubits)
         self.qlayer = VariationalQuantumLayer(
             n_qubits=n_qubits, n_layers=n_layers, entanglement=entanglement,
             data_reuploading=data_reuploading, diff_method=diff_method, device_name=device_name,
+            noise_type=noise_type, noise_prob=noise_prob,
         )
         self.classifier = nn.Sequential(
             nn.Linear(n_qubits, max(n_qubits * 2, 8)),
@@ -55,4 +56,6 @@ def build_model_from_config(cfg: dict, n_classes: int) -> HybridQCNN:
         data_reuploading=q["data_reuploading"],
         diff_method=q["diff_method"],
         device_name=q["device_name"],
+        noise_type=q.get("noise_type", "ideal"),
+        noise_prob=q.get("noise_prob", 0.0),
     )

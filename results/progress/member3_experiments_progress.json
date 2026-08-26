@@ -1,0 +1,117 @@
+{
+  "experiment_name": "member3_experiments",
+  "start_time": "2026-08-26T21:20:12.946415",
+  "status": "running",
+  "total_tasks": 2,
+  "completed_tasks": 6,
+  "failed_tasks": 4,
+  "current_task": null,
+  "tasks": [
+    {
+      "name": "cnn-hybrid",
+      "status": "failed",
+      "start_time": "2026-08-26T21:20:12.947877",
+      "info": {
+        "phase": "multi_seed_validation"
+      },
+      "end_time": "2026-08-26T21:20:13.039509",
+      "error": "Traceback (most recent call last):\n  File \"C:\\Users\\priam\\qml\\brain-tumor-classification\\experiments\\multi_seed_runner.py\", line 17, in <module>\n    from utils.metrics import aggregate_over_seeds\nModuleNotFoundError: No module named 'utils'\n"
+    },
+    {
+      "name": "multi_seed_validation",
+      "status": "failed",
+      "start_time": "2026-08-26T21:52:06.089290",
+      "info": {},
+      "end_time": "2026-08-26T21:54:13.337580",
+      "error": "Unknown error"
+    },
+    {
+      "name": "cnn-hybrid",
+      "status": "completed",
+      "start_time": "2026-08-26T21:52:06.090290",
+      "info": {
+        "phase": "multi_seed_validation"
+      },
+      "end_time": "2026-08-26T21:53:07.059434",
+      "result": {}
+    },
+    {
+      "name": "gnn-hybrid",
+      "status": "failed",
+      "start_time": "2026-08-26T21:53:07.060421",
+      "info": {
+        "phase": "multi_seed_validation"
+      },
+      "end_time": "2026-08-26T21:54:13.335566",
+      "error": "Unknown error"
+    },
+    {
+      "name": "resource_ablations",
+      "status": "started",
+      "start_time": "2026-08-26T21:54:13.338568",
+      "info": {}
+    },
+    {
+      "name": "cnn-hybrid",
+      "status": "completed",
+      "start_time": "2026-08-26T22:11:01.536925",
+      "info": {
+        "phase": "multi_seed_validation"
+      },
+      "end_time": "2026-08-26T22:12:00.393831",
+      "result": {}
+    },
+    {
+      "name": "gnn-hybrid",
+      "status": "failed",
+      "start_time": "2026-08-26T22:12:00.394833",
+      "info": {
+        "phase": "multi_seed_validation"
+      },
+      "end_time": "2026-08-26T22:13:07.095247",
+      "error": "Unknown error"
+    },
+    {
+      "name": "cnn-hybrid",
+      "status": "completed",
+      "start_time": "2026-08-26T22:57:18.593448",
+      "info": {
+        "phase": "multi_seed_validation"
+      },
+      "end_time": "2026-08-26T22:58:33.246168",
+      "result": {}
+    },
+    {
+      "name": "gnn-hybrid",
+      "status": "completed",
+      "start_time": "2026-08-26T22:58:33.246168",
+      "info": {
+        "phase": "multi_seed_validation"
+      },
+      "end_time": "2026-08-26T22:59:46.822193",
+      "result": {}
+    },
+    {
+      "name": "cnn-hybrid",
+      "status": "completed",
+      "start_time": "2026-08-26T23:12:49.303445",
+      "info": {
+        "phase": "multi_seed_validation"
+      },
+      "end_time": "2026-08-26T23:13:55.356240",
+      "result": {}
+    },
+    {
+      "name": "gnn-hybrid",
+      "status": "completed",
+      "start_time": "2026-08-26T23:13:55.357240",
+      "info": {
+        "phase": "multi_seed_validation"
+      },
+      "end_time": "2026-08-26T23:15:34.128665",
+      "result": {}
+    }
+  ],
+  "checkpoints": [],
+  "last_update": "2026-08-26T23:15:34.128665"
+}

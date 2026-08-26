@@ -1,0 +1,283 @@
+# Example experimental configurations for Member 3 validation
+# Copy relevant sections to your main config.yaml as needed
+
+# ============================================================================
+# QUICK START CONFIGURATION (Minimal - for initial testing)
+# ============================================================================
+quick_start:
+  project:
+    name: "hybrid-qcnn-brain-tumor"
+    seed: 42
+    seeds_for_stats: [42]  # Single seed for quick testing
+    device: "auto"
+    results_dir: "results"
+  
+  training:
+    epochs: 1  # Minimal epochs for quick testing
+    lr: 0.001
+  
+  quantum:
+    n_qubits: 2  # Minimal qubits for speed
+    n_layers: 1  # Minimal layers for speed
+    data_reuploading: true
+    noise_type: "ideal"
+    noise_prob: 0.0
+
+# ============================================================================
+# RESOURCE ABLATION CONFIGURATION (Systematic resource analysis)
+# ============================================================================
+resource_ablation_study:
+  # Base quantum settings
+  quantum:
+    framework: "pennylane"
+    n_qubits: 4  # Will be overridden by ablation script
+    n_layers: 2  # Will be overridden by ablation script
+    encoding: "angle"
+    entanglement: "circular"
+    data_reuploading: true  # Will be overridden by ablation script
+    diff_method: "backprop"
+    device_name: "default.qubit"
+    noise_type: "ideal"
+    noise_prob: 0.0
+  
+  # Ablation experiment settings
+  ablation_experiments:
+    qubit_counts: [2, 4, 6, 8]  # Extended qubit range
+    layer_counts: [1, 2, 4, 6]  # Extended layer range
+    reuploading_options: [true, false]
+    models: ["hybrid"]
+    representations: ["cnn", "gnn"]
+  
+  training:
+    epochs: 5  # Moderate epochs for ablation study
+    lr: 0.001
+
+# ============================================================================
+# NOISE ROBUSTNESS CONFIGURATION (NISQ device simulation)
+# ============================================================================
+noise_robustness_study:
+  # Base quantum settings
+  quantum:
+    framework: "pennylane"
+    n_qubits: 4
+    n_layers: 2
+    encoding: "angle"
+    entanglement: "circular"
+    data_reuploading: true
+    diff_method: "backprop"
+    device_name: "default.qubit"
+    noise_type: "bit_flip"  # Will be overridden by noise script
+    noise_prob: 0.01  # Will be overridden by noise script
+  
+  # Noise experiment settings
+  noise_experiments:
+    noise_types: ["ideal", "bit_flip", "phase_flip", "depolarizing"]
+    noise_probabilities: [0.0, 0.001, 0.01, 0.05, 0.1]  # Fine-grained probabilities
+    models: ["hybrid"]
+    representations: ["cnn", "gnn"]
+  
+  training:
+    epochs: 5  # Moderate epochs for noise study
+    lr: 0.001
+
+# ============================================================================
+# STATISTICAL VALIDATION CONFIGURATION (Rigorous multi-seed analysis)
+# ============================================================================
+statistical_validation:
+  project:
+    name: "hybrid-qcnn-brain-tumor"
+    seed: 42
+    seeds_for_stats: [42, 1, 7, 13, 21]  # 5 seeds for statistical power
+    device: "auto"
+    results_dir: "results"
+  
+  training:
+    epochs: 10  # Sufficient epochs for convergence
+    lr: 0.001
+    early_stopping_patience: 5
+  
+  quantum:
+    n_qubits: 4
+    n_layers: 2
+    data_reuploading: true
+    noise_type: "ideal"
+    noise_prob: 0.0
+  
+  # Statistical analysis settings
+  statistical_analysis:
+    primary_metric: "accuracy"
+    confidence_level: 0.95
+    metrics_to_analyze: ["accuracy", "f1_macro", "precision_macro", "recall_macro", "roc_auc_ovr"]
+
+# ============================================================================
+# EXPLAINABILITY CONFIGURATION (Model interpretability)
+# ============================================================================
+explainability_study:
+  project:
+    seed: 42  # Use fixed seed for consistent explainability
+  
+  training:
+    epochs: 10  # Well-trained model for explainability
+  
+  quantum:
+    n_qubits: 4
+    n_layers: 2
+    data_reuploading: true
+  
+  # Explainability settings
+  explainability:
+    cnn:
+      method: "gradcam"  # Options: "gradcam", "gradcam++"
+      num_samples: 20  # More samples for comprehensive analysis
+      target_layers: ["last_conv"]  # Specify layers to explain
+    gnn:
+      num_samples: 20
+      epochs: 200  # More epochs for better convergence
+      lr: 0.01
+      edge_mask_type: "object"
+      node_mask_type: "attributes"
+
+# ============================================================================
+# CROSS-DATASET CONFIGURATION (Generalization analysis)
+# ============================================================================
+cross_dataset_study:
+  project:
+    seed: 42
+  
+  training:
+    epochs: 10
+  
+  quantum:
+    n_qubits: 4
+    n_layers: 2
+    data_reuploading: true
+  
+  # Cross-dataset settings
+  cross_dataset:
+    # Example dataset pairs (modify paths to your actual datasets)
+    dataset_pairs:
+      - "data/dataset_A: data/dataset_B"
+      - "data/dataset_A: data/dataset_C"
+      - "data/dataset_B: data/dataset_C"
+    
+    # Alternative: specify separate lists
+    source_datasets: ["data/dataset_A", "data/dataset_B"]
+    target_datasets: ["data/dataset_C", "data/dataset_D"]
+  
+  data:
+    # Ensure consistent preprocessing across datasets
+    image_size: 96
+    augmentation:
+      horizontal_flip: true
+      rotation_degrees: 10
+      brightness_jitter: 0.1
+
+# ============================================================================
+# COMPREHENSIVE STUDY CONFIGURATION (Full experimental suite)
+# ============================================================================
+comprehensive_study:
+  project:
+    name: "hybrid-qcnn-brain-tumor-comprehensive"
+    seed: 42
+    seeds_for_stats: [42, 1, 7, 13, 21, 34]  # 6 seeds for high statistical power
+    device: "auto"
+    results_dir: "results_comprehensive"
+  
+  training:
+    epochs: 15  # More epochs for comprehensive study
+    lr: 0.001
+    early_stopping_patience: 8
+    grad_clip: 1.0
+  
+  quantum:
+    framework: "pennylane"
+    n_qubits: 4
+    n_layers: 2
+    encoding: "angle"
+    entanglement: "circular"
+    data_reuploading: true
+    diff_method: "backprop"
+    device_name: "default.qubit"
+    noise_type: "ideal"
+    noise_prob: 0.0
+  
+  # All experimental configurations
+  ablation_experiments:
+    qubit_counts: [2, 4, 6, 8]
+    layer_counts: [1, 2, 4, 6]
+    reuploading_options: [true, false]
+    models: ["hybrid"]
+    representations: ["cnn", "gnn"]
+  
+  noise_experiments:
+    noise_types: ["ideal", "bit_flip", "phase_flip", "depolarizing"]
+    noise_probabilities: [0.0, 0.001, 0.01, 0.05, 0.1]
+    models: ["hybrid"]
+    representations: ["cnn", "gnn"]
+  
+  explainability:
+    cnn:
+      method: "gradcam"
+      num_samples: 30
+    gnn:
+      num_samples: 30
+      epochs: 200
+      lr: 0.01
+  
+  cross_dataset:
+    dataset_pairs: []  # Configure based on available datasets
+  
+  statistical_analysis:
+    primary_metric: "accuracy"
+    confidence_level: 0.95
+    metrics_to_analyze: ["accuracy", "f1_macro", "precision_macro", "recall_macro", "roc_auc_ovr", "specificity_macro"]
+
+# ============================================================================
+# COMPUTATIONAL BUDGET CONFIGURATION (Limited resources)
+# ============================================================================
+limited_resources:
+  project:
+    seeds_for_stats: [42, 1]  # Only 2 seeds
+    device: "cpu"  # Force CPU usage
+  
+  training:
+    epochs: 3  # Minimal training
+    batch_size: 8  # Smaller batches
+    num_workers: 0  # No parallel data loading
+  
+  quantum:
+    n_qubits: 2  # Minimal qubits
+    n_layers: 1  # Minimal layers
+    diff_method: "backprop"  # Fastest gradient method
+  
+  ablation_experiments:
+    qubit_counts: [2, 4]  # Reduced qubit range
+    layer_counts: [1, 2]  # Reduced layer range
+    reuploading_options: [true]  # Only test re-uploading
+  
+  noise_experiments:
+    noise_types: ["ideal", "bit_flip"]  # Only test 2 noise types
+    noise_probabilities: [0.0, 0.01, 0.1]  # Reduced probability range
+  
+  explainability:
+    cnn:
+      num_samples: 5  # Fewer samples
+    gnn:
+      num_samples: 5
+      epochs: 50  # Fewer epochs
+
+# ============================================================================
+# NOTES AND RECOMMENDATIONS
+# ============================================================================
+# 
+# 1. For initial testing, use the "quick_start" configuration
+# 2. For paper-ready results, use the "comprehensive_study" configuration
+# 3. For limited computational resources, use the "limited_resources" configuration
+# 4. Always verify that dataset paths are correct before running experiments
+# 5. Adjust epochs based on your dataset size and convergence behavior
+# 6. Monitor GPU memory usage for larger qubit/layer configurations
+# 7. For noise experiments, start with small probabilities and scale up
+# 8. For cross-dataset studies, ensure datasets have compatible preprocessing
+# 9. Save configurations that work well for reproducibility
+# 10. Document any configuration changes in your experiment logs
+#

@@ -1,0 +1,16 @@
+{
+  "config_summary": {
+    "project": "kaggle-mri-hybrid",
+    "seeds_for_stats": [
+      42,
+      1,
+      7
+    ]
+  },
+  "analyses": {
+    "cnn_vs_gnn_comparison": {
+      "status": "requires_individual_seed_results",
+      "note": "Load individual seed JSON files for paired statistical tests"
+    }
+  }
+}

@@ -24,9 +24,18 @@ import pennylane as qml
 import torch
 import torch.nn as nn
 
+# Noise channel imports
+try:
+    from pennylane.ops import BitFlip, PhaseFlip, DepolarizingChannel
+    NOISE_AVAILABLE = True
+except ImportError:
+    NOISE_AVAILABLE = False
+
 
 def build_qnode(n_qubits: int, n_layers: int, entanglement: str, data_reuploading: bool,
-                 diff_method: str = "backprop", device_name: str = "default.qubit"):
+                 diff_method: str = "backprop", device_name: str = "default.qubit",
+                 noise_type: str = "ideal", noise_prob: float = 0.0):
+    # Configure device with noise model if specified
     dev = qml.device(device_name, wires=n_qubits)
 
     def entangle(wires):
@@ -43,6 +52,20 @@ def build_qnode(n_qubits: int, n_layers: int, entanglement: str, data_reuploadin
         else:
             raise ValueError(f"Unknown entanglement strategy '{entanglement}'")
 
+    def apply_noise(wire):
+        """Apply noise channel based on noise type."""
+        if not NOISE_AVAILABLE or noise_type == "ideal" or noise_prob <= 0:
+            return
+        
+        if noise_type == "bit_flip":
+            BitFlip(noise_prob, wires=wire)
+        elif noise_type == "phase_flip":
+            PhaseFlip(noise_prob, wires=wire)
+        elif noise_type == "depolarizing":
+            DepolarizingChannel(noise_prob, wires=wire)
+        else:
+            raise ValueError(f"Unknown noise type '{noise_type}'")
+
     @qml.qnode(dev, interface="torch", diff_method=diff_method)
     def circuit(inputs, weights):
         # inputs: (..., n_qubits) classical features scaled to roughly [-pi, pi].
@@ -55,14 +78,20 @@ def build_qnode(n_qubits: int, n_layers: int, entanglement: str, data_reuploadin
         if not data_reuploading:
             for w in wires:
                 qml.RY(inputs[..., w], wires=w)
+                apply_noise(w)
 
         for layer in range(n_layers):
             if data_reuploading:
                 for w in wires:
                     qml.RY(inputs[..., w], wires=w)
+                    apply_noise(w)
             for w in wires:
                 qml.RZ(weights[layer, w], wires=w)
+                apply_noise(w)
             entangle(wires)
+            # Apply noise after entanglement
+            for w in wires:
+                apply_noise(w)
 
         return [qml.expval(qml.PauliZ(w)) for w in wires]
 
@@ -79,15 +108,19 @@ class VariationalQuantumLayer(nn.Module):
 
     def __init__(self, n_qubits: int, n_layers: int, entanglement: str = "circular",
                  data_reuploading: bool = True, diff_method: str = "backprop",
-                 device_name: str = "default.qubit"):
+                 device_name: str = "default.qubit", noise_type: str = "ideal", 
+                 noise_prob: float = 0.0):
         super().__init__()
         self.n_qubits = n_qubits
         self.n_layers = n_layers
         self.entanglement = entanglement
         self.data_reuploading = data_reuploading
+        self.noise_type = noise_type
+        self.noise_prob = noise_prob
 
         circuit, weight_shapes = build_qnode(
-            n_qubits, n_layers, entanglement, data_reuploading, diff_method, device_name
+            n_qubits, n_layers, entanglement, data_reuploading, diff_method, device_name,
+            noise_type, noise_prob
         )
         self.qlayer = qml.qnn.TorchLayer(circuit, weight_shapes)
 

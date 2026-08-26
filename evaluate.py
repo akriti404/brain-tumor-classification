@@ -16,8 +16,10 @@ import torch
 import torch.nn.functional as F
 import yaml
 
-from data.dataset import build_dataloaders
-from models.graph import build_graph_dataloaders
+from data.dataset import MRIDataset, build_dataloaders, build_transforms, collect_samples
+from models.graph import GraphMRIDataset, build_graph_dataloaders
+from torch.utils.data import DataLoader
+from torch_geometric.loader import DataLoader as GraphDataLoader
 from train import build_model
 from utils.metrics import compute_metrics
 from utils.reproducibility import set_seed, get_device
@@ -44,6 +46,30 @@ RESULTS_TABLE_COLUMNS = [
 ]
 
 
+def build_external_test_loader(cfg: dict, target_root: str, representation: str):
+    """Build an unsplit test loader for an external ImageFolder dataset."""
+    samples, classes = collect_samples(target_root)
+    expected_classes = sorted(classes)
+    data_cfg = cfg["data"]
+    transform = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=False)
+
+    if representation == "gnn":
+        graph_cfg = cfg.get("graph", {})
+        graph_cfg = {key: graph_cfg[key] for key in ("n_segments", "compactness") if key in graph_cfg}
+        dataset = GraphMRIDataset(samples, transform, graph_cfg, cfg["project"]["seed"])
+    else:
+        dataset = MRIDataset(samples, transform=transform)
+
+    loader_class = GraphDataLoader if representation == "gnn" else DataLoader
+    loader = loader_class(
+        dataset,
+        batch_size=data_cfg["batch_size"],
+        shuffle=False,
+        num_workers=data_cfg["num_workers"],
+    )
+    return loader, expected_classes
+
+
 @torch.no_grad()
 def evaluate_model(model, test_loader, device, n_classes):
     model.eval()
@@ -54,16 +80,20 @@ def evaluate_model(model, test_loader, device, n_classes):
 
     t0 = time.time()
 
-    for x, y in test_loader:
-        x = x.to(device)
+    for batch in test_loader:
+        if hasattr(batch, "edge_index"):
+            inputs = batch.to(device)
+            y = inputs.y
+        else:
+            inputs, y = batch[0].to(device), batch[1].to(device)
 
-        logits = model(x)
+        logits = model(inputs)
 
         probs = F.softmax(logits, dim=1)
         preds = probs.argmax(dim=1)
 
         all_preds.append(preds.cpu().numpy())
-        all_labels.append(y.numpy())
+        all_labels.append(y.cpu().numpy())
         all_probs.append(probs.cpu().numpy())
 
     inference_time = time.time() - t0
@@ -143,6 +173,13 @@ def main():
         default="cnn",
     )
 
+    parser.add_argument(
+        "--test_root",
+        type=str,
+        default=None,
+        help="Optional external ImageFolder root to evaluate without splitting",
+    )
+
     args = parser.parse_args()
 
     # ---------------------------------------------------------
@@ -168,13 +205,18 @@ def main():
     # Build data loaders
     # ---------------------------------------------------------
 
-    (
-        train_loader,
-        val_loader,
-        test_loader,
-        classes,
-        meta,
-    ) = (build_graph_dataloaders(cfg) if args.representation == "gnn" else build_dataloaders(cfg))
+    if args.test_root:
+        test_loader, classes = build_external_test_loader(cfg, args.test_root, args.representation)
+        meta = {"split_method": "external_full_dataset"}
+        train_loader = val_loader = None
+    else:
+        (
+            train_loader,
+            val_loader,
+            test_loader,
+            classes,
+            meta,
+        ) = (build_graph_dataloaders(cfg) if args.representation == "gnn" else build_dataloaders(cfg))
 
     n_classes = len(classes)
 
@@ -190,6 +232,9 @@ def main():
     )
 
     model.to(device)
+
+    if args.test_root and classes != sorted(classes):
+        raise ValueError("External dataset classes must be sorted consistently")
 
     # ---------------------------------------------------------
     # Load trained checkpoint
@@ -274,7 +319,7 @@ def main():
             None,
         )
 
-        split_method = train_log.get(
+        split_method = meta["split_method"] if args.test_root else train_log.get(
             "split_method",
             meta["split_method"],
         )

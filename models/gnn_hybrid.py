@@ -27,12 +27,14 @@ class GNNEncoder(nn.Module):
 class HybridGNNVQC(nn.Module):
     def __init__(self, n_classes: int, node_feature_dim: int, hidden_dim: int,
                  num_layers: int, n_qubits: int, n_quantum_layers: int,
-                 entanglement: str, data_reuploading: bool, diff_method: str, device_name: str):
+                 entanglement: str, data_reuploading: bool, diff_method: str, device_name: str,
+                 noise_type: str = "ideal", noise_prob: float = 0.0):
         super().__init__()
         self.encoder = GNNEncoder(node_feature_dim, hidden_dim, num_layers)
         self.reducer = DimensionalityReducer(hidden_dim * 2, n_qubits)
         self.qlayer = VariationalQuantumLayer(
             n_qubits, n_quantum_layers, entanglement, data_reuploading, diff_method, device_name,
+            noise_type, noise_prob,
         )
         classifier_dim = max(n_qubits * 2, 8)
         self.classifier = nn.Sequential(nn.Linear(n_qubits, classifier_dim), nn.ReLU(), nn.Linear(classifier_dim, n_classes))
@@ -51,4 +53,5 @@ def build_gnn_model_from_config(cfg: dict, n_classes: int) -> HybridGNNVQC:
         hidden_dim=graph_cfg.get("hidden_dim", 32), num_layers=graph_cfg.get("num_layers", 2),
         n_qubits=q["n_qubits"], n_quantum_layers=q["n_layers"], entanglement=q["entanglement"],
         data_reuploading=q["data_reuploading"], diff_method=q["diff_method"], device_name=q["device_name"],
+        noise_type=q.get("noise_type", "ideal"), noise_prob=q.get("noise_prob", 0.0),
     )

@@ -1,0 +1,57 @@
+classical_backbone:
+  architecture: mobilenet_v2
+  feature_dim: 1280
+  freeze_backbone: false
+  pretrained: true
+  reduced_dim: 8
+data:
+  augmentation:
+    brightness_jitter: 0.1
+    horizontal_flip: true
+    rotation_degrees: 10
+  batch_size: 32
+  channels: 3
+  class_imbalance_strategy: weighted_sampler
+  image_size: 96
+  num_workers: 0
+  patient_level_split: true
+  root: data/raw
+  synthetic_fallback: false
+  test_frac: 0.15
+  val_frac: 0.15
+graph:
+  compactness: 10.0
+  hidden_dim: 32
+  n_segments: 32
+  num_layers: 2
+logging:
+  log_every_n_steps: 10
+  save_checkpoints: true
+project:
+  device: auto
+  name: kaggle-mri-hybrid
+  results_dir: results
+  seed: 42
+  seeds_for_stats:
+  - 42
+  - 1
+  - 7
+quantum:
+  data_reuploading: false
+  device_name: default.qubit
+  diff_method: backprop
+  encoding: angle
+  entanglement: circular
+  framework: pennylane
+  n_layers: 1
+  n_qubits: 2
+  noise_prob: 0.0
+  noise_type: ideal
+training:
+  early_stopping_patience: 5
+  epochs: 10
+  grad_clip: 1.0
+  lr: 0.001
+  optimizer: adam
+  scheduler: cosine
+  weight_decay: 0.0001

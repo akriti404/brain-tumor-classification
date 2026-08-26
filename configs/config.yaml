@@ -55,6 +55,8 @@ quantum:
   data_reuploading: true
   diff_method: "backprop"        # fast simulator-friendly gradient
   device_name: "default.qubit"
+  noise_type: "ideal"            # "ideal" | "bit_flip" | "phase_flip" | "depolarizing"
+  noise_prob: 0.0                # Noise probability (0.0 = no noise)
 
 training:
   epochs: 3                # smoke-test scale for CPU sandbox; raise for real runs
@@ -78,3 +80,41 @@ evaluation:
 logging:
   save_checkpoints: true
   log_every_n_steps: 10
+
+# Member 3 Experimental Configuration
+ablation_experiments:
+  qubit_counts: [2, 4, 6]
+  layer_counts: [1, 2, 4]
+  reuploading_options: [true, false]
+  models: ["hybrid"]
+  representations: ["cnn", "gnn"]
+
+noise_experiments:
+  noise_types: ["ideal", "bit_flip", "phase_flip", "depolarizing"]
+  noise_probabilities: [0.0, 0.01, 0.05, 0.1]
+  models: ["hybrid"]
+  representations: ["cnn", "gnn"]
+
+explainability:
+  cnn:
+    method: "gradcam"              # "gradcam" | "gradcam++"
+    num_samples: 10
+  gnn:
+    num_samples: 10
+    epochs: 100
+    lr: 0.01
+
+cross_dataset:
+  # Define dataset pairs for train-on-A/test-on-B experiments
+  # Format: source_dataset: target_dataset
+  dataset_pairs: []
+  # Example: ["data/source_dataset: data/target_dataset"]
+  
+  # Alternative: specify separate source and target lists
+  source_datasets: []
+  target_datasets: []
+
+statistical_analysis:
+  primary_metric: "accuracy"
+  confidence_level: 0.95
+  metrics_to_analyze: ["accuracy", "f1_macro", "precision_macro", "recall_macro"]
