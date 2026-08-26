@@ -23,6 +23,8 @@ from sklearn.model_selection import train_test_split
 
 IMG_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 PATIENT_ID_PATTERN = re.compile(r"(patient[_\-]?\d+|pid[_\-]?\d+|p\d{3,})", re.IGNORECASE)
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
 def discover_classes(root: str):
@@ -122,7 +124,7 @@ def build_transforms(image_size: int, augmentation_cfg: dict, train: bool):
             ops.append(transforms.ColorJitter(brightness=jitter))
     ops += [
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),  # ImageNet stats (backbone is pretrained on ImageNet)
+        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ]
     return transforms.Compose(ops)
 

@@ -40,6 +40,12 @@ classical_backbone:
   feature_dim: 1280              # output of backbone before reduction head
   reduced_dim: 8                 # dimensionality reduction target -> quantum input
 
+graph:
+  n_segments: 32
+  compactness: 10.0
+  hidden_dim: 32
+  num_layers: 2
+
 quantum:
   framework: "pennylane"
   n_qubits: 4
