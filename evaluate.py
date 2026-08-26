@@ -17,6 +17,7 @@ import torch.nn.functional as F
 import yaml
 
 from data.dataset import build_dataloaders
+from models.graph import build_graph_dataloaders
 from train import build_model
 from utils.metrics import compute_metrics
 from utils.reproducibility import set_seed, get_device
@@ -136,6 +137,12 @@ def main():
         default=None,
     )
 
+    parser.add_argument(
+        "--representation",
+        choices=["cnn", "gnn"],
+        default="cnn",
+    )
+
     args = parser.parse_args()
 
     # ---------------------------------------------------------
@@ -167,7 +174,7 @@ def main():
         test_loader,
         classes,
         meta,
-    ) = build_dataloaders(cfg)
+    ) = (build_graph_dataloaders(cfg) if args.representation == "gnn" else build_dataloaders(cfg))
 
     n_classes = len(classes)
 
@@ -179,6 +186,7 @@ def main():
         args.model,
         cfg,
         n_classes,
+        args.representation,
     )
 
     model.to(device)
@@ -194,14 +202,14 @@ def main():
     checkpoint_path = (
         results_dir
         / "checkpoints"
-        / f"{args.model}_seed{seed}.pt"
+        / f"{args.representation + '_' if args.representation == 'gnn' else ''}{args.model}_seed{seed}.pt"
     )
 
     if not checkpoint_path.exists():
         raise FileNotFoundError(
             f"Checkpoint not found: {checkpoint_path}\n"
             f"Train the model first using:\n"
-            f"python train.py --model {args.model} --seed {seed}"
+            f"python train.py --model {args.model} --representation {args.representation} --seed {seed}"
         )
 
     checkpoint = torch.load(
@@ -225,7 +233,7 @@ def main():
         q = cfg["quantum"]
 
         param_report = build_param_report(
-            args.model,
+            f"{args.representation}_{args.model}" if args.representation == "gnn" else args.model,
             model,
             model.qlayer.quantum_parameters,
             n_qubits=q["n_qubits"],
@@ -237,7 +245,7 @@ def main():
     else:
 
         param_report = build_param_report(
-            args.model,
+            f"{args.representation}_{args.model}" if args.representation == "gnn" else args.model,
             model,
             None,
             n_qubits=0,
@@ -253,7 +261,7 @@ def main():
     train_log_path = (
         results_dir
         / "logs"
-        / f"train_{args.model}_seed{seed}.json"
+        / f"train_{args.representation + '_' if args.representation == 'gnn' else ''}{args.model}_seed{seed}.json"
     )
 
     if train_log_path.exists():
@@ -310,7 +318,7 @@ def main():
     with open(
         results_dir
         / "logs"
-        / f"eval_{args.model}_seed{seed}.json",
+        / f"eval_{args.representation + '_' if args.representation == 'gnn' else ''}{args.model}_seed{seed}.json",
         "w",
     ) as f:
 
@@ -326,7 +334,7 @@ def main():
 
     row = {
 
-        "model": args.model,
+        "model": f"{args.representation}_{args.model}" if args.representation == "gnn" else args.model,
 
         "dataset_split_method": split_method,
 

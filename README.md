@@ -137,6 +137,27 @@ python evaluate.py --model hybrid
 python -m visualization.plots
 ```
 
+### Independent GNN-VQC branch
+
+The graph branch is a parallel representation pipeline, not a fused CNN+GNN
+model. It converts each ImageNet-preprocessed MRI tensor into a SLIC superpixel
+graph, standardizes seven node features, applies a configurable GCN with mean/max
+graph pooling, and reduces the result to the same `n_qubits`-wide bounded tensor
+used by the CNN branch. Both branches then call the same PennyLane VQC and
+classifier contract.
+
+Configure SLIC and GNN settings under `graph:` in `configs/config.yaml`, then run:
+
+```bash
+python train.py --model hybrid --representation gnn
+python evaluate.py --model hybrid --representation gnn
+```
+
+GNN runs are saved as `gnn_hybrid` with separate checkpoints and logs, while
+using the same split, seed, quantum settings, metrics, and results CSV schema as
+the CNN-VQC run. The graph implementation lives in `models/graph.py` and the
+model in `models/gnn_hybrid.py`.
+
 Every hyperparameter (qubits, layers, entanglement, encoding, epochs, backbone
 choice, etc.) lives in `configs/config.yaml` — sweep any of them by editing the
 config or passing a different config file.
