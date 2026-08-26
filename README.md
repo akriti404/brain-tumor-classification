@@ -1,213 +1,201 @@
-# Parameter-Efficient Hybrid Quantum-Classical Brain Tumor MRI Classification
+# Brain Tumor Classification — Hybrid Quantum-Classical MRI Framework
 
-Research-grade, reproducible codebase for:
-**"A Parameter-Efficient and Explainable Hybrid Quantum Machine Learning Framework
-for Multi-Class Brain Tumor Classification from MRI Images"**
+A controlled comparative framework for evaluating **classical (CNN)** and **graph-based (GNN)**
+representations within a hybrid quantum-classical pipeline for brain MRI tumor classification,
+using a shared **Variational Quantum Classifier (VQC)** implemented in PennyLane.
 
-This is the **core-pieces milestone**: data pipeline, classical baselines, and the
-proposed hybrid CNN+VQC model. Noise/NISQ evaluation, cross-dataset generalization,
-full ablation sweeps, explainability, and statistical-significance testing are
-scaffolded in the architecture but not yet implemented — see
-["What's implemented vs. scaffolded"](#whats-implemented-vs-scaffolded).
+This is **not** a single novel CNN-GNN-VQC architecture. It is two independent, directly
+comparable pipelines — CNN-VQC and GNN-VQC — that share the same quantum classifier and
+evaluation harness, enabling a controlled comparison of classical vs. graph-based representations
+under identical quantum-resource and noise conditions.
 
-## Read this first: sandbox limitations and research integrity
+```
+                    ┌── CNN → Dimensional Reduction ──┐
+MRI → Preprocessing ┤                                 ├→ VQC → Classifier
+                    └── Superpixels → GNN → Reduction ─┘
+```
 
-This code was built and smoke-tested in a sandboxed environment with:
-- **No GPU** (`torch.cuda.is_available() == False`, verified) — everything ran on CPU.
-- **No access to Kaggle, Mendeley, or figshare**, where the real public brain-tumor
-  MRI datasets are hosted. The sandbox's network allowlist covers package registries
-  (PyPI, npm, crates) and github.com code, not data-hosting sites. Every public
-  brain-tumor-MRI GitHub repo I could inspect ships *code*, not the actual images
-  (the images are downloaded from Kaggle at runtime) — confirmed by cloning several
-  and checking their contents.
-- **No access to `download.pytorch.org`**, so torchvision's pretrained ImageNet
-  weights (`pretrained: true` in the config) could not be downloaded here either
-  (verified: HTTP 403). `configs/config.yaml` ships with `pretrained: false` for
-  that reason. **On real hardware with normal internet access, set it back to
-  `true`** — the architecture is designed around transfer learning from a
-  pretrained MobileNetV2/ResNet18 backbone, per the spec.
+---
 
-Because of this, **all numbers currently in `results/` were produced by training on
-a small procedurally-generated synthetic placeholder dataset** (see
-`data/synthetic_data_generator.py`), for a handful of epochs, purely to prove the
-pipeline runs correctly end-to-end (data loading → splitting → augmentation →
-baseline models → the actual PennyLane quantum circuit → training loop → metrics →
-results table → figures). **These numbers are not a scientific finding, do not
-reflect real MRI data, and must not be cited or reported as results in your paper.**
-This follows the spec's own research-integrity requirement (Section 16): don't
-fabricate or imply results that weren't actually produced under the claimed
-conditions.
+## Project status
 
-**To get real results:** download a real dataset (e.g. Kaggle's
-`masoudnickparvar/brain-tumor-mri-dataset`, 4 classes: glioma, meningioma,
-pituitary, notumor — the one most of the reviewed 2026 papers use) onto a machine
-with GPU + full internet access, arrange it as `data/raw/<class_name>/*.jpg`,
-set `pretrained: true`, raise `training.epochs`, and everything else runs
-unmodified.
+| Component | Status |
+|---|---|
+| Dataset pipeline & preprocessing | ✅ Implemented |
+| Classical baselines (Simple CNN, ResNet18, MobileNetV2, proposed classical model) | ✅ Implemented |
+| CNN → VQC hybrid branch | ✅ Implemented |
+| GNN → VQC hybrid branch | ✅ Implemented |
+| Shared PennyLane VQC (RY encoding, data re-uploading) | ✅ Implemented, shared unmodified across both branches |
+| Training / evaluation harness (seeds, splits, metrics, logging) | ✅ Implemented, consistent across CNN and GNN branches |
+| Visualization / figure generation | ✅ Implemented |
+| Qubit / layer / re-uploading ablations | ⬜ Not yet run |
+| Noise experiments (bit-flip, phase-flip, depolarizing) | ⬜ Not yet run |
+| Multi-seed statistical validation | ⬜ Not yet run |
+| Explainability (Grad-CAM / GNNExplainer) | ⬜ Not yet run |
+| Cross-dataset generalization | ⬜ Not yet run |
+
+---
 
 ## Architecture
 
-```
-MRI Image
-  -> Preprocessing (resize, normalize, augment)
-  -> Lightweight classical feature extractor (MobileNetV2 or ResNet18, pretrained)
-  -> Dimensionality reduction (MLP -> tanh, output width = n_qubits)
-  -> Quantum feature encoding (angle encoding, scaled to [-pi, pi])
-  -> Parameter-efficient data-re-uploading VQC (configurable qubits/layers/entanglement)
-  -> Classical classification head
-  -> Multi-class prediction
-```
+### Shared CNN-to-VQC / GNN-to-VQC contract
 
-### What's novel here (vs. a generic CNN+VQC)
+Both representation branches are required to produce output matching this exact interface before
+entering the shared quantum layer:
 
-The quantum component (`models/quantum.py`) combines three choices specifically to
-target the "parameter efficiency" and "limited qubit/depth analysis" gaps your
-literature review identified (Slide 6 of `Review_1_final.pptx`):
+- Output shape: `(B, n_qubits)`
+- Value range: bounded to `[-1, 1]` via `tanh`
+- `n_qubits` is read from shared config (default `4`) — changing it affects both branches identically
 
-1. **Reduced-qubit representation** — the classical dimensionality-reduction head
-   compresses the backbone's 1280-d (MobileNetV2) or 512-d (ResNet18) feature vector
-   down to exactly `n_qubits` values, so qubit count is a free experimental knob
-   independent of backbone choice.
-2. **Data re-uploading** — features are re-encoded at every variational layer
-   (not just once at the start), which the re-uploading literature shows lets a
-   small number of qubits approximate more complex decision boundaries than a
-   single-encoding circuit of the same width — directly relevant to keeping qubit
-   count low (2/4/6/8 as required) without sacrificing expressivity.
-3. **Configurable entanglement topology** (circular / linear / full) — so the
-   qubit-count vs. circuit-depth vs. accuracy trade-off study the spec asks for
-   (Section 6) can isolate the entanglement strategy as its own variable.
+The shared VQC (`quantum.py`) then:
+1. Scales inputs by `π`
+2. Applies RY angle encoding
+3. Re-uploads features at every variational layer
+4. Returns `(B, n_qubits)` expectation values to the shared classifier head (`hybrid.py`)
 
-This is a combination, not a copy of any single reviewed paper — it's closest in
-spirit to Rahman & Kim (2025, parameter-efficient QML) and Rahman et al.'s
-QuReBrain (2026, data re-uploading), but neither paper couples re-uploading with a
-qubit-count-independent classical bottleneck the way this does. This claim should
-be checked against the full papers (only abstracts/summaries were available in
-your review deck) before it goes in a thesis — I have not read the original PDFs.
+### CNN branch
+
+- Input: `(B, 3, 96, 96)` RGB tensors, ImageNet-normalized (`dataset.py`)
+- Backbone: MobileNetV2 (`(B, 1280)`) or ResNet18 (`(B, 512)`) (`classical.py`)
+- Reducer: linear projection → `(B, n_qubits)`, `tanh`-bounded
+
+### GNN branch
+
+- Input: the same preprocessed `(B, 3, 96, 96)` tensors, de-normalized back to display-space RGB
+- Graph construction (`mri_to_graph()`): SLIC superpixel segmentation → region-adjacency graph
+  - Node features: mean intensity, texture/std stats, centroid `(x, y)`, region area
+  - Edges: spatial adjacency between superpixels, optionally weighted by intensity similarity
+- Encoder: 2–3 layer GCN with global mean/max pooling → graph-level embedding
+- Reducer: independently-weighted linear projection (mirrors the CNN reducer's pattern) →
+  `(B, n_qubits)`, `tanh`-bounded
+- Feeds into the same, unmodified VQC
+
+---
 
 ## Repository layout
 
 ```
-configs/config.yaml       All hyperparameters — nothing is hard-coded in the scripts.
 data/
-  dataset_inspector.py     Auto-discovers classes/counts/corrupted/duplicate images.
-  dataset.py                Patient-level (falls back to stratified) split, transforms,
-                             augmentation, WeightedRandomSampler for class imbalance.
-  synthetic_data_generator.py  SANDBOX-ONLY placeholder data generator (see above).
+  raw/                          # MRI images (synthetic generator available for testing)
+  synthetic_data_generator.py   # Generates placeholder data if raw/ is empty
+  dataset_inspector.py          # Dataset sanity-check / stats CLI
+dataset.py                      # Preprocessing, normalization, DataLoader
 models/
-  classical.py              SimpleCNN, ResNet18, MobileNetV2 baselines; the shared
-                             feature-extractor + dim-reduction head; classical-only
-                             ablation variant of the proposed architecture.
-  quantum.py                 The parameter-efficient, data-re-uploading VQC (PennyLane).
-  hybrid.py                  Assembles the full proposed CNN+VQC model.
-utils/
-  reproducibility.py        Seeding, device selection.
-  param_count.py             Parameter/gate/depth accounting for the efficiency study.
-  metrics.py                  Accuracy/precision/recall/F1/specificity/ROC-AUC/confusion matrix.
-visualization/plots.py       Class distribution, sample images, training curves,
-                               baseline comparison, accuracy-vs-parameters.
-train.py                     Trains one model (baseline or hybrid) per the config.
-evaluate.py                  Full test-set metrics + appends a row to the results table.
-results/
-  logs/          Per-run JSON: full training history + parameter report.
-  tables/experiment_results.csv   Master experiment-tracking table (spec Section 15).
-  figures/        Generated plots.
-  checkpoints/    Saved model weights.
+  classical.py                  # Simple CNN, ResNet18, MobileNetV2, proposed classical model
+  quantum.py                    # Shared PennyLane VQC (VariationalQuantumLayer)
+  hybrid.py                     # CNN-VQC hybrid model, shared classifier head
+  graph.py                      # mri_to_graph() — SLIC + region-adjacency graph construction
+  gnn_hybrid.py                 # GNN encoder + reducer + GNN-VQC hybrid model
+utils/                          # Shared helpers (seeding, metrics, logging, checkpoints)
+visualization/
+  plots.py                      # Figure generation from evaluation results
+train.py                        # Training entry point (--model, --representation flags)
+evaluate.py                     # Evaluation entry point
+requirements.txt
 ```
 
-## Running it
+---
 
-```bash
+## Setup
+
+Run from the project root, in order.
+
+### 1. Activate the environment
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+### 2. Install dependencies
+```powershell
 pip install -r requirements.txt
-
-# 1. Get data. Either point configs/config.yaml -> data.root at a real
-#    ImageFolder-structured dataset, or let the synthetic fallback generate
-#    a placeholder set automatically (data.synthetic_fallback: true).
-
-# 2. Inspect the dataset (auto class discovery, corruption/duplicate check).
-python -m data.dataset_inspector --root data/raw
-
-# 3. Train + evaluate any model. Results append to results/tables/experiment_results.csv.
-python evaluate.py --model simple_cnn
-python evaluate.py --model resnet18
-python evaluate.py --model mobilenet_v2
-python evaluate.py --model classical_proposed
-python evaluate.py --model hybrid
-
-# 4. Generate figures.
-python -m visualization.plots
 ```
 
-### Independent GNN-VQC branch
+### 3. Generate synthetic data (only if `data/raw` is empty)
+```powershell
+python data/synthetic_data_generator.py
+```
 
-The graph branch is a parallel representation pipeline, not a fused CNN+GNN
-model. It converts each ImageNet-preprocessed MRI tensor into a SLIC superpixel
-graph, standardizes seven node features, applies a configurable GCN with mean/max
-graph pooling, and reduces the result to the same `n_qubits`-wide bounded tensor
-used by the CNN branch. Both branches then call the same PennyLane VQC and
-classifier contract.
+### 4. Inspect the dataset
+```powershell
+python -m data.dataset_inspector --root data/raw
+```
 
-Configure SLIC and GNN settings under `graph:` in `configs/config.yaml`, then run:
+---
 
-```bash
+## Running experiments
+
+### CNN-VQC branch
+```powershell
+python train.py --model hybrid --representation cnn
+python evaluate.py --model hybrid --representation cnn
+```
+
+### GNN-VQC branch
+```powershell
 python train.py --model hybrid --representation gnn
 python evaluate.py --model hybrid --representation gnn
 ```
 
-GNN runs are saved as `gnn_hybrid` with separate checkpoints and logs, while
-using the same split, seed, quantum settings, metrics, and results CSV schema as
-the CNN-VQC run. The graph implementation lives in `models/graph.py` and the
-model in `models/gnn_hybrid.py`.
+### Classical baselines (optional)
+```powershell
+python train.py --model simple_cnn
+python evaluate.py --model simple_cnn
 
-Every hyperparameter (qubits, layers, entanglement, encoding, epochs, backbone
-choice, etc.) lives in `configs/config.yaml` — sweep any of them by editing the
-config or passing a different config file.
+python train.py --model resnet18
+python evaluate.py --model resnet18
 
-## Parameter efficiency (real numbers, from the smoke test)
+python train.py --model mobilenet_v2
+python evaluate.py --model mobilenet_v2
 
-From `results/tables/experiment_results.csv`, this is the actual parameter
-accounting the pipeline produces (not accuracy — see the integrity note above —
-but the parameter/qubit/depth counts themselves are correct regardless of dataset):
+python train.py --model classical_proposed
+python evaluate.py --model classical_proposed
+```
 
-| Model | Total params | Quantum params | Qubits | Circuit depth |
-|---|---|---|---|---|
-| simple_cnn | 24,068 | 0 | 0 | 0 |
-| resnet18 | 11,178,564 | 0 | 0 | 0 |
-| mobilenet_v2 | 2,228,996 | 0 | 0 | 0 |
-| classical_proposed | 2,265,340 | 0 | 0 | 0 |
-| **hybrid (proposed)** | 2,244,520 | **8** | 4 | 4 |
+### Generate figures (after evaluations)
+```powershell
+python -m visualization.plots
+```
 
-Note the hybrid model's *quantum* subcircuit uses only 8 trainable parameters
-(2 layers × 4 qubits) regardless of image resolution or backbone width — this is
-the parameter-efficiency claim the spec asks to substantiate (Section 6). The
-total parameter count is currently dominated by the unfrozen MobileNetV2 backbone;
-setting `classical_backbone.freeze_backbone: true` would isolate the quantum
-component's contribution more cleanly for the ablation study.
+> Files inside `models/`, `dataset.py`, and `utils/` are imported automatically — do not run them
+> directly. Each `evaluate.py` call must follow its matching `train.py` call.
 
-## What's implemented vs. scaffolded
+## Experimental axes (planned)
 
-**Implemented and smoke-tested (this milestone):**
-- Automatic dataset inspection (classes, counts, corrupted/duplicate images)
-- Patient-level (or stratified fallback) train/val/test splitting, augmentation,
-  class-imbalance handling
-- 4 classical baselines + the classical-only ablation variant
-- The proposed hybrid CNN+VQC model with a real, working PennyLane circuit
-  (verified: batched forward pass and gradient backprop both function correctly)
-- Full metrics suite (accuracy, precision, recall, F1 macro/weighted, specificity,
-  ROC-AUC OvR, confusion matrix)
-- Parameter/qubit/gate/depth accounting
-- Experiment-tracking CSV, training-curve/comparison/parameter-efficiency figures
+```
+Representation
+    ├── CNN
+    └── GNN
+          ↓
+Quantum model
+    ├── VQC
+    └── Quantum Kernel (if feasible)
+          ↓
+Resource
+    ├── 2 / 4 / 6 qubits
+    ├── 1 / 2 / 4 layers
+    └── Re-uploading ON / OFF
+          ↓
+Noise
+    ├── Ideal
+    ├── Bit-flip
+    ├── Phase-flip
+    └── Depolarizing
+          ↓
+Evaluation
+    ├── Performance
+    ├── Resource efficiency
+    ├── Explainability
+    └── Cross-dataset generalization
+```
 
-**Scaffolded (config fields and structure exist) but not yet built:**
-- Noise/NISQ simulator comparison (Section 8) — `quantum.device_name` can point at
-  a noisy PennyLane device, but the noise-sweep experiment script isn't written yet
-- Cross-dataset generalization (Section 9) — needs a second dataset
-- Full ablation sweep across qubit counts/depths/encodings (Section 11) — the model
-  and config support this per-run; a sweep-orchestration script isn't written yet
-- Multi-seed statistical aggregation + significance testing (Sections 10, 12) —
-  `utils/metrics.py::aggregate_over_seeds` exists; the multi-seed runner doesn't yet
-- Explainability: Grad-CAM on the classical backbone, expectation-value/ablation
-  analysis on the quantum component (Section 7)
-- Remaining visualizations (confusion matrix, ROC curves, noise-robustness,
-  ablation, Grad-CAM) (Section 13)
+## Research framing
 
-Say the word and I'll build out any of these next.
+This project studies:
+
+> A controlled comparative framework for evaluating classical and graph-based representations
+> within hybrid quantum-classical brain MRI classification, while systematically quantifying the
+> effects of quantum resources, NISQ noise, explainability, and cross-dataset generalization.
+
+The current implementation (CNN-VQC + GNN-VQC on a shared VQC) is the **foundation** for this
+study. The ablation, noise, explainability, and cross-dataset experiments listed above are the
+next phase, not yet run.
