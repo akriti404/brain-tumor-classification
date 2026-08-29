@@ -216,7 +216,7 @@ def main():
             test_loader,
             classes,
             meta,
-        ) = (build_graph_dataloaders(cfg) if args.representation == "gnn" else build_dataloaders(cfg))
+        ) = (build_graph_dataloaders(cfg) if args.representation == "gnn" else build_dataloaders(cfg, seed=seed))
 
     n_classes = len(classes)
 

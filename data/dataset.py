@@ -144,7 +144,7 @@ def compute_class_weights(samples, n_classes) -> torch.Tensor:
     return torch.tensor(weights, dtype=torch.float32)
 
 
-def build_dataloaders(cfg: dict):
+def build_dataloaders(cfg: dict, seed: int = None):
     """
     Top-level entry point. Reads cfg['data'], discovers/splits the dataset,
     and returns (train_loader, val_loader, test_loader, classes, meta).
@@ -161,9 +161,10 @@ def build_dataloaders(cfg: dict):
             raise FileNotFoundError(f"Dataset root '{root}' not found and synthetic_fallback is disabled.")
 
     samples, classes = collect_samples(root)
+    split_seed = cfg["project"]["seed"] if seed is None else seed
     train_s, val_s, test_s, split_method = patient_level_split(
         samples, data_cfg["val_frac"], data_cfg["test_frac"],
-        cfg["project"]["seed"], data_cfg.get("patient_level_split", True)
+        split_seed, data_cfg.get("patient_level_split", True)
     )
 
     train_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=True)

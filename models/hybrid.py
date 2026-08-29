@@ -3,6 +3,7 @@ Proposed model: MRI -> lightweight classical feature extractor ->
 dimensionality reduction -> quantum feature encoding + parameter-efficient
 data-re-uploading VQC -> classical classification head -> prediction.
 """
+import torch
 import torch.nn as nn
 
 from models.classical import LightweightFeatureExtractor, DimensionalityReducer
@@ -22,7 +23,7 @@ class HybridQCNN(nn.Module):
             noise_type=noise_type, noise_prob=noise_prob,
         )
         self.classifier = nn.Sequential(
-            nn.Linear(n_qubits, max(n_qubits * 2, 8)),
+            nn.Linear(n_qubits * 2, max(n_qubits * 2, 8)),
             nn.ReLU(),
             nn.Linear(max(n_qubits * 2, 8), n_classes),
         )
@@ -31,14 +32,14 @@ class HybridQCNN(nn.Module):
         feats = self.extractor(x)
         reduced = self.reducer(feats)          # (B, n_qubits), bounded in [-1, 1]
         q_out = self.qlayer(reduced)            # (B, n_qubits), expectation values
-        return self.classifier(q_out)
+        return self.classifier(torch.cat((reduced, q_out), dim=1))
 
     def get_intermediate(self, x):
         """Returns (reduced_features, quantum_expectations, logits) for analysis/explainability."""
         feats = self.extractor(x)
         reduced = self.reducer(feats)
         q_out = self.qlayer(reduced)
-        logits = self.classifier(q_out)
+        logits = self.classifier(torch.cat((reduced, q_out), dim=1))
         return reduced, q_out, logits
 
 

@@ -17,15 +17,14 @@ project:
 
 data:
   root: "data/raw"              # ImageFolder layout: root/<class>/*.jpg
-  synthetic_fallback: true      # if root has no data, generate a small
-                                 # synthetic placeholder set (see data/synthetic_data_generator.py)
+  synthetic_fallback: false      # real Kaggle run: disable synthetic placeholders
   image_size: 96                # resized square input size
   channels: 3
   val_frac: 0.15
   test_frac: 0.15
   patient_level_split: true     # patient-level split if patient IDs are inferable, else stratified image-level
-  batch_size: 16
-  num_workers: 0        # sandbox is CPU-only with limited cores; raise this on real hardware
+  batch_size: 32
+  num_workers: 0                # raise this on real hardware if needed
   augmentation:
     horizontal_flip: true
     rotation_degrees: 10
@@ -34,8 +33,7 @@ data:
 
 classical_backbone:
   architecture: "mobilenet_v2"   # "simple_cnn" | "resnet18" | "mobilenet_v2"
-  pretrained: false  # set true on real hardware with internet access to download ImageNet weights;
-                      # this sandbox's network allowlist blocks download.pytorch.org (verified: HTTP 403)
+  pretrained: true                # use ImageNet weights for real Kaggle dataset
   freeze_backbone: false
   feature_dim: 1280              # output of backbone before reduction head
   reduced_dim: 8                 # dimensionality reduction target -> quantum input
@@ -48,8 +46,8 @@ graph:
 
 quantum:
   framework: "pennylane"
-  n_qubits: 4
-  n_layers: 2
+  n_qubits: 8
+  n_layers: 3
   encoding: "angle"              # "angle" | "amplitude"
   entanglement: "circular"       # "circular" | "linear" | "full"
   data_reuploading: true
@@ -59,12 +57,12 @@ quantum:
   noise_prob: 0.0                # Noise probability (0.0 = no noise)
 
 training:
-  epochs: 3                # smoke-test scale for CPU sandbox; raise for real runs
-  lr: 0.001
+  epochs: 12               # safer transfer-learning window; stop if validation stops improving
+  lr: 0.0001              # lower LR for pretrained transfer learning
   optimizer: "adam"
   weight_decay: 0.0001
   scheduler: "cosine"
-  early_stopping_patience: 5
+  early_stopping_patience: 4
   grad_clip: 1.0
 
 baselines:

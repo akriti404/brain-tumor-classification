@@ -69,12 +69,19 @@ def run_one_epoch(model, loader, criterion, optimizer, device, train: bool):
     return total_loss / max(total, 1), correct / max(total, 1)
 
 
+def update_early_stopping(best_val_acc: float, current_val_acc: float, epochs_without_improvement: int,
+                         patience: int, min_delta: float = 1e-4):
+    if current_val_acc > best_val_acc + min_delta:
+        return current_val_acc, 0, False
+    return best_val_acc, epochs_without_improvement + 1, patience > 0 and (epochs_without_improvement + 1) >= patience
+
+
 def train_model(model_name: str, cfg: dict, seed: int = None, representation: str = "cnn"):
     seed = seed if seed is not None else cfg["project"]["seed"]
     set_seed(seed)
     device = get_device(cfg["project"]["device"])
 
-    loaders = build_graph_dataloaders(cfg) if representation == "gnn" else build_dataloaders(cfg)
+    loaders = build_graph_dataloaders(cfg) if representation == "gnn" else build_dataloaders(cfg, seed=seed)
     train_loader, val_loader, test_loader, classes, meta = loaders
     n_classes = len(classes)
 
@@ -90,6 +97,8 @@ def train_model(model_name: str, cfg: dict, seed: int = None, representation: st
 
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
     best_val_acc, best_state = -1.0, None
+    patience = int(cfg["training"].get("early_stopping_patience", 0))
+    epochs_without_improvement = 0
     t0 = time.time()
 
     for epoch in range(cfg["training"]["epochs"]):
@@ -102,9 +111,17 @@ def train_model(model_name: str, cfg: dict, seed: int = None, representation: st
         history["val_acc"].append(val_acc)
         print(f"[{model_name}] epoch {epoch+1}/{cfg['training']['epochs']} "
               f"train_loss={tr_loss:.4f} train_acc={tr_acc:.4f} val_loss={val_loss:.4f} val_acc={val_acc:.4f}")
+
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+
+        if patience > 0 and epochs_without_improvement >= patience:
+            print(f"[Early stopping] no validation improvement for {patience} epochs at epoch {epoch + 1}; stopping.")
+            break
 
     training_time = time.time() - t0
     if best_state is not None:

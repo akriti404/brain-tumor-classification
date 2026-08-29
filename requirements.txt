@@ -9,6 +9,7 @@ matplotlib>=3.7
 seaborn>=0.12
 Pillow>=10.0
 PyYAML>=6.0
+kagglehub>=0.3.0
 grad-cam>=1.5
 scikit-image>=0.22
 torch-geometric>=2.5
