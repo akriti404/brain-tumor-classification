@@ -1,4 +1,3 @@
-"""Independent GNN -> reducer -> shared VQC classification branch."""
 import torch
 import torch.nn as nn
 from torch_geometric.nn import GCNConv, global_max_pool, global_mean_pool
@@ -36,13 +35,27 @@ class HybridGNNVQC(nn.Module):
             n_qubits, n_quantum_layers, entanglement, data_reuploading, diff_method, device_name,
             noise_type, noise_prob,
         )
-        classifier_dim = max(n_qubits * 2, 8)
-        self.classifier = nn.Sequential(nn.Linear(n_qubits, classifier_dim), nn.ReLU(), nn.Linear(classifier_dim, n_classes))
+        # Residual concat: classifier sees BOTH the reduced classical embedding
+        # and the quantum expectation values, mirroring HybridQCNN in hybrid.py.
+        classifier_in = n_qubits * 2
+        classifier_dim = max(classifier_in, 8)
+        self.classifier = nn.Sequential(
+            nn.Linear(classifier_in, classifier_dim), nn.ReLU(), nn.Linear(classifier_dim, n_classes)
+        )
 
     def forward(self, data):
         embedding = self.encoder(data)
+        reduced = self.reducer(embedding)          # (B, n_qubits), tanh-bounded
+        q_out = self.qlayer(reduced)                # (B, n_qubits), expectation values
+        return self.classifier(torch.cat((reduced, q_out), dim=1))
+
+    def get_intermediate(self, data):
+        """Returns (reduced_features, quantum_expectations, logits) for analysis/explainability."""
+        embedding = self.encoder(data)
         reduced = self.reducer(embedding)
-        return self.classifier(self.qlayer(reduced))
+        q_out = self.qlayer(reduced)
+        logits = self.classifier(torch.cat((reduced, q_out), dim=1))
+        return reduced, q_out, logits
 
 
 def build_gnn_model_from_config(cfg: dict, n_classes: int) -> HybridGNNVQC:

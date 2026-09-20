@@ -6,6 +6,10 @@
 # root/<class_name>/*.jpg) — e.g. the Kaggle "Brain Tumor MRI Dataset"
 # (masoudnickparvar/brain-tumor-mri-dataset, 4 classes: glioma, meningioma,
 # notumor, pituitary). Nothing else needs to change to run on real data.
+#
+# Step 1 additions: two-stage fine-tuning schedule (training.warmup_epochs,
+# training.head_lr, training.backbone_lr) and label smoothing
+# (training.label_smoothing). See train.py for how these are consumed.
 # =====================================================================
 
 project:
@@ -34,7 +38,9 @@ data:
 classical_backbone:
   architecture: "mobilenet_v2"   # "simple_cnn" | "resnet18" | "mobilenet_v2"
   pretrained: true                # use ImageNet weights for real Kaggle dataset
-  freeze_backbone: false
+  freeze_backbone: false          # NOTE: superseded by training.warmup_epochs for
+                                   # hybrid/classical_proposed/resnet18/mobilenet_v2 —
+                                   # train.py freezes/unfreezes dynamically instead.
   feature_dim: 1280              # output of backbone before reduction head
   reduced_dim: 8                 # dimensionality reduction target -> quantum input
 
@@ -43,6 +49,14 @@ graph:
   compactness: 10.0
   hidden_dim: 32
   num_layers: 2
+
+fusion:
+  # Step 2: Cross-Attention CNN+GNN Fusion (models/fusion.py). Only used
+  # when running `--model hybrid --representation fusion`.
+  d_model: 64            # cross-attention embedding dim (CNN tokens & GNN node queries)
+  n_attention_heads: 4
+  d_fusion: 64            # dim after gated fusion of CNN-global + graph-informed vectors
+  readout: "xyz"          # VQC readout: "z" (Step 1 default, n_qubits outputs) | "xyz" (3x n_qubits outputs)
 
 quantum:
   framework: "pennylane"
@@ -57,13 +71,17 @@ quantum:
   noise_prob: 0.0                # Noise probability (0.0 = no noise)
 
 training:
-  epochs: 12               # safer transfer-learning window; stop if validation stops improving
-  lr: 0.0001              # lower LR for pretrained transfer learning
+  epochs: 30                # total epochs across BOTH phases (warmup + fine-tune)
+  warmup_epochs: 3           # Phase A: backbone frozen, head-only, at head_lr
+  lr: 0.0001                # fallback LR for models with no pretrained backbone (simple_cnn, gnn)
+  head_lr: 0.001             # Phase A LR and Phase B head-group LR
+  backbone_lr: 0.00001       # Phase B backbone-group LR (10x lower than head)
+  label_smoothing: 0.05      # 0.0 disables; helps generalization on ~7k-image dataset
   optimizer: "adam"
   weight_decay: 0.0001
-  scheduler: "cosine"
-  early_stopping_patience: 4
-  grad_clip: 1.0
+  scheduler: "cosine"        # cosine anneal applied within Phase B (and single-phase runs)
+  early_stopping_patience: 6 # counted across the whole run, not per-phase
+  grad_clip: 1.0              # NOTE: not yet wired into train.py's optimizer step — see Step 2/3
 
 baselines:
   - simple_cnn
@@ -107,7 +125,7 @@ cross_dataset:
   # Format: source_dataset: target_dataset
   dataset_pairs: []
   # Example: ["data/source_dataset: data/target_dataset"]
-  
+
   # Alternative: specify separate source and target lists
   source_datasets: []
   target_datasets: []
