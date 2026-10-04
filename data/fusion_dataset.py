@@ -7,9 +7,16 @@ map) and the SLIC graph (for the GNN) for the *same* sample in the same
 forward pass, so cross-attention can align them. This module reuses the
 existing sample discovery / patient-level split / transforms / class-weight
 utilities from data/dataset.py and the graph construction from
-models/graph.py — it does not reimplement any of that, only combines them.
+models/graph.py -- it does not reimplement any of that, only combines them.
 
-Place this at: data/fusion_dataset.py
+Step 3 (TTA) addition: FusionMRIDataset and build_fusion_dataloaders now
+accept `horizontal_flip`. For the fusion model, test-time flip augmentation
+cannot be done by flipping the CNN input tensor alone (as experiments/
+tta_evaluate.py does for the plain CNN models) -- the SLIC graph depends on
+image content, so a flipped image needs its OWN freshly-built graph, not
+the original graph reused. Setting horizontal_flip=True flips the image
+tensor BEFORE calling mri_to_graph, so the graph is built correctly on the
+flipped image.
 """
 from pathlib import Path
 
@@ -31,11 +38,12 @@ from models.graph import mri_to_graph
 class FusionMRIDataset(Dataset):
     """Returns (image_tensor, graph_data, label) per sample."""
 
-    def __init__(self, samples, transform, graph_cfg, seed):
+    def __init__(self, samples, transform, graph_cfg, seed, horizontal_flip: bool = False):
         self.samples = samples
         self.transform = transform
         self.graph_cfg = graph_cfg
         self.seed = seed
+        self.horizontal_flip = horizontal_flip
 
     def __len__(self):
         return len(self.samples)
@@ -45,6 +53,12 @@ class FusionMRIDataset(Dataset):
         with Image.open(path) as image:
             image = image.convert("RGB")
         image_t = self.transform(image)
+        if self.horizontal_flip:
+            # Eval-mode transforms have no train-time augmentation (no rotation/
+            # jitter), so flipping the already-normalized tensor is equivalent to
+            # flipping the source image -- and building the graph AFTER the flip
+            # (not flipping a pre-built graph) is what makes this a valid TTA view.
+            image_t = torch.flip(image_t, dims=[-1])
         graph = mri_to_graph(image_t, seed=self.seed + index, **self.graph_cfg)
         return image_t, graph, label
 
@@ -63,8 +77,16 @@ def fusion_collate(batch):
     return image_batch, graph_batch, label_batch
 
 
-def build_fusion_dataloaders(cfg: dict):
-    """Mirrors models.graph.build_graph_dataloaders but yields (image, graph, label) batches."""
+def build_fusion_dataloaders(cfg: dict, horizontal_flip: bool = False):
+    """
+    Mirrors models.graph.build_graph_dataloaders but yields (image, graph, label)
+    batches. `horizontal_flip=True` applies to ALL THREE splits (train/val/test)
+    uniformly -- in practice only used (via the test loader) for TTA, since
+    flipping train data here is not the same as the real augmentation pipeline
+    in data/dataset.py's build_transforms (which randomly flips per-sample, not
+    deterministically every sample); don't use horizontal_flip=True for actual
+    training.
+    """
     data_cfg = cfg["data"]
     root = Path(data_cfg["root"])
     if not root.exists() or not any(root.iterdir()):
@@ -85,9 +107,9 @@ def build_fusion_dataloaders(cfg: dict):
     slic_cfg = {key: graph_cfg[key] for key in ("n_segments", "compactness") if key in graph_cfg}
 
     datasets = [
-        FusionMRIDataset(train_s, train_tf, slic_cfg, cfg["project"]["seed"]),
-        FusionMRIDataset(val_s, eval_tf, slic_cfg, cfg["project"]["seed"]),
-        FusionMRIDataset(test_s, eval_tf, slic_cfg, cfg["project"]["seed"]),
+        FusionMRIDataset(train_s, train_tf, slic_cfg, cfg["project"]["seed"], horizontal_flip),
+        FusionMRIDataset(val_s, eval_tf, slic_cfg, cfg["project"]["seed"], horizontal_flip),
+        FusionMRIDataset(test_s, eval_tf, slic_cfg, cfg["project"]["seed"], horizontal_flip),
     ]
     strategy = data_cfg.get("class_imbalance_strategy", "none")
     sampler = make_weighted_sampler(train_s) if strategy == "weighted_sampler" else None
