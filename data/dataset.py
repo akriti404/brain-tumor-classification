@@ -9,6 +9,28 @@ Responsibilities (spec Section 3):
   - resizing / normalization / augmentation
   - class-imbalance handling via a WeightedRandomSampler (or class-weighted
     loss, configurable)
+
+Step 4 addition: CropToContent, a margin-removal preprocessing transform.
+
+The Kaggle Brain Tumor MRI Dataset (masoudnickparvar/brain-tumor-mri-dataset)
+is a merge of three source datasets with different native resolutions and
+framing conventions (glioma from figshare; meningioma/pituitary from SARTAJ;
+notumor from Br35H -- see data/dataset_inspector.py output: image sizes
+span 512x512, 225x225, 96x96, 630x630, 236x236, and more). The dataset's own
+documentation explicitly recommends "removing the extra margins" before
+training, because without it a model can learn to key off border/framing
+artifacts specific to each source rather than actual tumor morphology --
+exactly what error-targeted Grad-CAM analysis (experiments/
+explainability_errors.py) showed was happening on glioma<->meningioma
+misclassifications: heatmaps landing on skull edges and image corners
+rather than brain tissue.
+
+CropToContent crops away the near-black margin around the head/brain
+BEFORE resizing, using an Otsu threshold on grayscale intensity to find
+the foreground bounding box. It is inserted as the first step of
+build_transforms and is therefore applied identically across the CNN,
+GNN, and fusion data pipelines (all three call build_transforms from this
+module) -- a single change point rather than three separate ones.
 """
 import re
 from pathlib import Path
@@ -17,6 +39,7 @@ from collections import defaultdict
 import numpy as np
 import torch
 from PIL import Image
+from skimage.filters import threshold_otsu
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms
 from sklearn.model_selection import train_test_split
@@ -25,6 +48,57 @@ IMG_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 PATIENT_ID_PATTERN = re.compile(r"(patient[_\-]?\d+|pid[_\-]?\d+|p\d{3,})", re.IGNORECASE)
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
+
+
+class CropToContent:
+    """
+    Crops away black/near-black margin surrounding the head in brain MRI
+    images, before resizing. Falls back to returning the image unmodified
+    if Otsu thresholding fails to find a sensible foreground region (e.g.
+    a near-uniform image) -- preprocessing on a handful of edge-case
+    images should degrade gracefully, not crash a training run.
+    """
+
+    def __init__(self, padding_frac: float = 0.02, min_content_frac: float = 0.05):
+        self.padding_frac = padding_frac
+        self.min_content_frac = min_content_frac
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        gray = np.asarray(image.convert("L"), dtype=np.float32)
+        if gray.max() <= gray.min():  # degenerate (uniform) image, nothing to crop
+            return image
+        try:
+            thresh = threshold_otsu(gray)
+        except ValueError:
+            return image
+
+        mask = gray > thresh
+        foreground_frac = mask.mean()
+        if foreground_frac < self.min_content_frac or foreground_frac > (1 - self.min_content_frac):
+            # Foreground is implausibly small or implausibly large -- thresholding
+            # likely failed on this particular image. Skip cropping rather than
+            # risk cropping away actual anatomy.
+            return image
+
+        rows = np.any(mask, axis=1)
+        cols = np.any(mask, axis=0)
+        row_idxs = np.where(rows)[0]
+        col_idxs = np.where(cols)[0]
+        if row_idxs.size == 0 or col_idxs.size == 0:
+            return image
+
+        top, bottom = int(row_idxs[0]), int(row_idxs[-1])
+        left, right = int(col_idxs[0]), int(col_idxs[-1])
+
+        h, w = gray.shape
+        pad_h = int(h * self.padding_frac)
+        pad_w = int(w * self.padding_frac)
+        top = max(0, top - pad_h)
+        bottom = min(h - 1, bottom + pad_h)
+        left = max(0, left - pad_w)
+        right = min(w - 1, right + pad_w)
+
+        return image.crop((left, top, right + 1, bottom + 1))
 
 
 def discover_classes(root: str):
@@ -111,8 +185,11 @@ class MRIDataset(Dataset):
         return img, label
 
 
-def build_transforms(image_size: int, augmentation_cfg: dict, train: bool):
-    ops = [transforms.Resize((image_size, image_size))]
+def build_transforms(image_size: int, augmentation_cfg: dict, train: bool, crop_margin: bool = True):
+    ops = []
+    if crop_margin:
+        ops.append(CropToContent())
+    ops.append(transforms.Resize((image_size, image_size)))
     if train:
         if augmentation_cfg.get("horizontal_flip", False):
             ops.append(transforms.RandomHorizontalFlip())
@@ -167,8 +244,9 @@ def build_dataloaders(cfg: dict, seed: int = None):
         split_seed, data_cfg.get("patient_level_split", True)
     )
 
-    train_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=True)
-    eval_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=False)
+    crop_margin = data_cfg.get("margin_crop", True)
+    train_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=True, crop_margin=crop_margin)
+    eval_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=False, crop_margin=crop_margin)
 
     train_ds = MRIDataset(train_s, transform=train_tf)
     val_ds = MRIDataset(val_s, transform=eval_tf)

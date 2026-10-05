@@ -1,0 +1,253 @@
+{
+  "n_cases": 31,
+  "cases": [
+    {
+      "test_index": 4,
+      "source_path": "data\\raw\\glioma\\gl-0022.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.7406948804855347,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0004_true-glioma_pred-meningioma_conf0.74.png"
+    },
+    {
+      "test_index": 11,
+      "source_path": "data\\raw\\glioma\\gl-0109.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.8098163604736328,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0011_true-glioma_pred-meningioma_conf0.81.png"
+    },
+    {
+      "test_index": 15,
+      "source_path": "data\\raw\\glioma\\gl-0129.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.524183452129364,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0015_true-glioma_pred-meningioma_conf0.52.png"
+    },
+    {
+      "test_index": 25,
+      "source_path": "data\\raw\\glioma\\gl-0189.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.7730309963226318,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0025_true-glioma_pred-meningioma_conf0.77.png"
+    },
+    {
+      "test_index": 29,
+      "source_path": "data\\raw\\glioma\\gl-0220.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.5681579113006592,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0029_true-glioma_pred-meningioma_conf0.57.png"
+    },
+    {
+      "test_index": 46,
+      "source_path": "data\\raw\\glioma\\gl-0347.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.93720543384552,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0046_true-glioma_pred-meningioma_conf0.94.png"
+    },
+    {
+      "test_index": 51,
+      "source_path": "data\\raw\\glioma\\gl-0405.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.6247206926345825,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0051_true-glioma_pred-meningioma_conf0.62.png"
+    },
+    {
+      "test_index": 70,
+      "source_path": "data\\raw\\glioma\\gl-0611.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.6722533702850342,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0070_true-glioma_pred-meningioma_conf0.67.png"
+    },
+    {
+      "test_index": 77,
+      "source_path": "data\\raw\\glioma\\gl-0653.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.7723428606987,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0077_true-glioma_pred-meningioma_conf0.77.png"
+    },
+    {
+      "test_index": 80,
+      "source_path": "data\\raw\\glioma\\gl-0671.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.6751077175140381,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0080_true-glioma_pred-meningioma_conf0.68.png"
+    },
+    {
+      "test_index": 116,
+      "source_path": "data\\raw\\glioma\\gl-0995.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.5246284008026123,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0116_true-glioma_pred-meningioma_conf0.52.png"
+    },
+    {
+      "test_index": 124,
+      "source_path": "data\\raw\\glioma\\gl-1017.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.8953080177307129,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0124_true-glioma_pred-meningioma_conf0.90.png"
+    },
+    {
+      "test_index": 171,
+      "source_path": "data\\raw\\glioma\\gl-1396.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.6250627040863037,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0171_true-glioma_pred-meningioma_conf0.63.png"
+    },
+    {
+      "test_index": 173,
+      "source_path": "data\\raw\\glioma\\gl-1438.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.9210978150367737,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0173_true-glioma_pred-meningioma_conf0.92.png"
+    },
+    {
+      "test_index": 187,
+      "source_path": "data\\raw\\glioma\\gl-1567.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.9166571497917175,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0187_true-glioma_pred-meningioma_conf0.92.png"
+    },
+    {
+      "test_index": 189,
+      "source_path": "data\\raw\\glioma\\gl-1582.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.9162522554397583,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0189_true-glioma_pred-meningioma_conf0.92.png"
+    },
+    {
+      "test_index": 192,
+      "source_path": "data\\raw\\glioma\\gl-1603.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.7611889839172363,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0192_true-glioma_pred-meningioma_conf0.76.png"
+    },
+    {
+      "test_index": 194,
+      "source_path": "data\\raw\\glioma\\gl-1619.jpg",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.8050242066383362,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0194_true-glioma_pred-meningioma_conf0.81.png"
+    },
+    {
+      "test_index": 195,
+      "source_path": "data\\raw\\glioma\\patient0002_img000.png",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.5415995121002197,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0195_true-glioma_pred-meningioma_conf0.54.png"
+    },
+    {
+      "test_index": 198,
+      "source_path": "data\\raw\\glioma\\patient0002_img003.png",
+      "true_class": "glioma",
+      "pred_class": "meningioma",
+      "confidence": 0.8105107545852661,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0198_true-glioma_pred-meningioma_conf0.81.png"
+    },
+    {
+      "test_index": 208,
+      "source_path": "data\\raw\\meningioma\\me-0048.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.5514576435089111,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0208_true-meningioma_pred-glioma_conf0.55.png"
+    },
+    {
+      "test_index": 216,
+      "source_path": "data\\raw\\meningioma\\me-0156.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.8321443796157837,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0216_true-meningioma_pred-glioma_conf0.83.png"
+    },
+    {
+      "test_index": 220,
+      "source_path": "data\\raw\\meningioma\\me-0203.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.5982545018196106,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0220_true-meningioma_pred-glioma_conf0.60.png"
+    },
+    {
+      "test_index": 238,
+      "source_path": "data\\raw\\meningioma\\me-0380.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.5511242747306824,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0238_true-meningioma_pred-glioma_conf0.55.png"
+    },
+    {
+      "test_index": 272,
+      "source_path": "data\\raw\\meningioma\\me-0662.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.7772793769836426,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0272_true-meningioma_pred-glioma_conf0.78.png"
+    },
+    {
+      "test_index": 319,
+      "source_path": "data\\raw\\meningioma\\me-1067.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.8157954216003418,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0319_true-meningioma_pred-glioma_conf0.82.png"
+    },
+    {
+      "test_index": 342,
+      "source_path": "data\\raw\\meningioma\\me-1226.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.64174485206604,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0342_true-meningioma_pred-glioma_conf0.64.png"
+    },
+    {
+      "test_index": 359,
+      "source_path": "data\\raw\\meningioma\\me-1375.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.46802818775177,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0359_true-meningioma_pred-glioma_conf0.47.png"
+    },
+    {
+      "test_index": 382,
+      "source_path": "data\\raw\\meningioma\\me-1516.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.6418203115463257,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0382_true-meningioma_pred-glioma_conf0.64.png"
+    },
+    {
+      "test_index": 390,
+      "source_path": "data\\raw\\meningioma\\me-1566.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.43484488129615784,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0390_true-meningioma_pred-glioma_conf0.43.png"
+    },
+    {
+      "test_index": 403,
+      "source_path": "data\\raw\\meningioma\\me-1681.jpg",
+      "true_class": "meningioma",
+      "pred_class": "glioma",
+      "confidence": 0.8843286633491516,
+      "heatmap_path": "results\\explainability\\error_analysis\\err_0403_true-meningioma_pred-glioma_conf0.88.png"
+    }
+  ]
+}

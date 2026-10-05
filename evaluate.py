@@ -3,6 +3,8 @@ Evaluates a trained model on the held-out test set.
 
 The model is loaded from an existing checkpoint produced by train.py.
 No training is performed during evaluation.
+
+Step 2 changes:
   - --representation now accepts "fusion" in addition to "cnn"/"gnn".
   - Checkpoint/log path naming generalized to match train.py's Step 2 change:
     only "cnn" has no prefix; "gnn" and "fusion" each get their own prefix
@@ -71,7 +73,8 @@ def build_external_test_loader(cfg: dict, target_root: str, representation: str)
     samples, classes = collect_samples(target_root)
     expected_classes = sorted(classes)
     data_cfg = cfg["data"]
-    transform = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=False)
+    transform = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=False,
+                                  crop_margin=data_cfg.get("margin_crop", True))
 
     if representation == "gnn":
         graph_cfg = cfg.get("graph", {})

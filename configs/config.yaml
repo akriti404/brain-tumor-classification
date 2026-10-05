@@ -27,7 +27,7 @@ data:
   val_frac: 0.15
   test_frac: 0.15
   patient_level_split: true     # patient-level split if patient IDs are inferable, else stratified image-level
-  batch_size: 32
+  margin_crop: false          
   num_workers: 0                # raise this on real hardware if needed
   augmentation:
     horizontal_flip: true

@@ -53,6 +53,11 @@ def mri_to_graph(image: torch.Tensor, n_segments: int = 32, compactness: float =
 
     Node features are mean RGB, grayscale standard deviation, normalized centroid,
     and area fraction. Edges connect superpixels that touch in the image plane.
+
+    Note: the input tensor is expected to already be cropped (see
+    data.dataset.CropToContent, applied upstream by build_transforms) and
+    resized -- this function builds the graph on whatever image it's given,
+    it doesn't do its own margin removal.
     """
     if image.ndim != 3 or image.shape[0] != 3:
         raise ValueError(f"Expected an RGB CHW tensor, got shape {tuple(image.shape)}")
@@ -133,8 +138,9 @@ def build_graph_dataloaders(cfg: dict):
         samples, data_cfg["val_frac"], data_cfg["test_frac"],
         cfg["project"]["seed"], data_cfg.get("patient_level_split", True),
     )
-    train_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=True)
-    eval_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=False)
+    crop_margin = data_cfg.get("margin_crop", True)
+    train_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=True, crop_margin=crop_margin)
+    eval_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=False, crop_margin=crop_margin)
     graph_cfg = cfg.get("graph", {})
     slic_cfg = {key: graph_cfg[key] for key in ("n_segments", "compactness") if key in graph_cfg}
     datasets = [

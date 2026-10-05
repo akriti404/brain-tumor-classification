@@ -9,14 +9,21 @@ existing sample discovery / patient-level split / transforms / class-weight
 utilities from data/dataset.py and the graph construction from
 models/graph.py -- it does not reimplement any of that, only combines them.
 
-Step 3 (TTA) addition: FusionMRIDataset and build_fusion_dataloaders now
-accept `horizontal_flip`. For the fusion model, test-time flip augmentation
-cannot be done by flipping the CNN input tensor alone (as experiments/
-tta_evaluate.py does for the plain CNN models) -- the SLIC graph depends on
+Step 3 (TTA) addition: FusionMRIDataset and build_fusion_dataloaders accept
+`horizontal_flip`. For the fusion model, test-time flip augmentation cannot
+be done by flipping the CNN input tensor alone -- the SLIC graph depends on
 image content, so a flipped image needs its OWN freshly-built graph, not
 the original graph reused. Setting horizontal_flip=True flips the image
 tensor BEFORE calling mri_to_graph, so the graph is built correctly on the
 flipped image.
+
+Step 4 addition: build_fusion_dataloaders now passes cfg['data']['margin_crop']
+through to build_transforms (via data.dataset.CropToContent), same as
+build_dataloaders and build_graph_dataloaders -- see data/dataset.py's
+module docstring for why this matters (dataset-provenance framing
+artifacts found via Grad-CAM error analysis).
+
+Place this at: data/fusion_dataset.py
 """
 from pathlib import Path
 
@@ -55,9 +62,9 @@ class FusionMRIDataset(Dataset):
         image_t = self.transform(image)
         if self.horizontal_flip:
             # Eval-mode transforms have no train-time augmentation (no rotation/
-            # jitter), so flipping the already-normalized tensor is equivalent to
-            # flipping the source image -- and building the graph AFTER the flip
-            # (not flipping a pre-built graph) is what makes this a valid TTA view.
+            # jitter), so flipping the already-normalized (and already margin-
+            # cropped) tensor is equivalent to flipping the source image -- and
+            # building the graph AFTER the flip is what makes this a valid TTA view.
             image_t = torch.flip(image_t, dims=[-1])
         graph = mri_to_graph(image_t, seed=self.seed + index, **self.graph_cfg)
         return image_t, graph, label
@@ -101,8 +108,9 @@ def build_fusion_dataloaders(cfg: dict, horizontal_flip: bool = False):
         samples, data_cfg["val_frac"], data_cfg["test_frac"],
         cfg["project"]["seed"], data_cfg.get("patient_level_split", True),
     )
-    train_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=True)
-    eval_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=False)
+    crop_margin = data_cfg.get("margin_crop", True)
+    train_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=True, crop_margin=crop_margin)
+    eval_tf = build_transforms(data_cfg["image_size"], data_cfg["augmentation"], train=False, crop_margin=crop_margin)
     graph_cfg = cfg.get("graph", {})
     slic_cfg = {key: graph_cfg[key] for key in ("n_segments", "compactness") if key in graph_cfg}
 
