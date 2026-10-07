@@ -128,7 +128,7 @@ def _forward_batch(model, batch, device, representation: str):
     return model(inputs), y
 
 
-def run_one_epoch(model, loader, criterion, optimizer, device, train: bool, representation: str = "cnn"):
+def run_one_epoch(model, loader, criterion, optimizer, device, train: bool, representation: str = "cnn", grad_clip: float = 0.0):
     model.train() if train else model.eval()
     total_loss, correct, total = 0.0, 0, 0
     context = torch.enable_grad() if train else torch.no_grad()
@@ -140,6 +140,8 @@ def run_one_epoch(model, loader, criterion, optimizer, device, train: bool, repr
             loss = criterion(logits, y)
             if train:
                 loss.backward()
+                if grad_clip > 0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
                 optimizer.step()
             total_loss += loss.item() * y.size(0)
             preds = logits.argmax(dim=1)
@@ -157,13 +159,13 @@ def update_early_stopping(best_val_acc: float, current_val_acc: float, epochs_wi
 
 def _run_phase(model, model_name, representation, train_loader, val_loader, criterion, optimizer, scheduler,
                device, n_epochs, history, best_val_acc, best_state, epochs_without_improvement, patience,
-               epoch_offset, total_epochs):
+               epoch_offset, total_epochs, grad_clip: float = 0.0):
     """Runs `n_epochs` of train/val, mutating and returning the shared bookkeeping state."""
     stopped_early = False
     for local_epoch in range(n_epochs):
         global_epoch = epoch_offset + local_epoch
-        tr_loss, tr_acc = run_one_epoch(model, train_loader, criterion, optimizer, device, True, representation)
-        val_loss, val_acc = run_one_epoch(model, val_loader, criterion, optimizer, device, False, representation)
+        tr_loss, tr_acc = run_one_epoch(model, train_loader, criterion, optimizer, device, True, representation, grad_clip)
+        val_loss, val_acc = run_one_epoch(model, val_loader, criterion, optimizer, device, False, representation, grad_clip)
         if scheduler is not None:
             scheduler.step()
         history["train_loss"].append(tr_loss)
@@ -221,6 +223,7 @@ def train_model(model_name: str, cfg: dict, seed: int = None, representation: st
     best_val_acc, best_state = -1.0, None
     patience = int(cfg["training"].get("early_stopping_patience", 0))
     epochs_without_improvement = 0
+    grad_clip = float(cfg["training"].get("grad_clip", 0.0))
     t0 = time.time()
 
     if backbone_split is not None and warmup_epochs > 0:
@@ -236,7 +239,7 @@ def train_model(model_name: str, cfg: dict, seed: int = None, representation: st
             scheduler=None, device=device, n_epochs=min(warmup_epochs, total_epochs), history=history,
             best_val_acc=best_val_acc, best_state=best_state,
             epochs_without_improvement=epochs_without_improvement, patience=patience,
-            epoch_offset=0, total_epochs=total_epochs,
+            epoch_offset=0, total_epochs=total_epochs, grad_clip=grad_clip,
         )
 
         remaining_epochs = total_epochs - min(warmup_epochs, total_epochs)
@@ -256,7 +259,7 @@ def train_model(model_name: str, cfg: dict, seed: int = None, representation: st
                 device=device, n_epochs=remaining_epochs, history=history,
                 best_val_acc=best_val_acc, best_state=best_state,
                 epochs_without_improvement=epochs_without_improvement, patience=patience,
-                epoch_offset=min(warmup_epochs, total_epochs), total_epochs=total_epochs,
+                epoch_offset=min(warmup_epochs, total_epochs), total_epochs=total_epochs, grad_clip=grad_clip,
             )
     else:
         # Single-phase training (no pretrained backbone to warm up, or warmup disabled).
@@ -269,7 +272,7 @@ def train_model(model_name: str, cfg: dict, seed: int = None, representation: st
             device=device, n_epochs=total_epochs, history=history,
             best_val_acc=best_val_acc, best_state=best_state,
             epochs_without_improvement=epochs_without_improvement, patience=patience,
-            epoch_offset=0, total_epochs=total_epochs,
+            epoch_offset=0, total_epochs=total_epochs, grad_clip=grad_clip,
         )
 
     training_time = time.time() - t0
