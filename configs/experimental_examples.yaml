@@ -1,8 +1,16 @@
 # Example experimental configurations for Member 3 validation
 # Copy relevant sections to your main config.yaml as needed
+#
+# Each preset below is a FULL override-set on top of config.yaml defaults.
+# Fields not listed here fall back to config.yaml values.
+#
+# NEW KEYS added (Step 1 & Step 2):
+#   fusion.d_model, fusion.n_attention_heads, fusion.d_fusion, fusion.readout
+#   training.warmup_epochs, training.head_lr, training.backbone_lr, training.label_smoothing
 
 # ============================================================================
 # QUICK START CONFIGURATION (Minimal - for initial testing)
+# Purpose: smoke-test the pipeline end-to-end as fast as possible.
 # ============================================================================
 quick_start:
   project:
@@ -11,27 +19,44 @@ quick_start:
     seeds_for_stats: [42]  # Single seed for quick testing
     device: "auto"
     results_dir: "results"
-  
+
+  fusion:
+    # Step 2 cross-attention fusion block — kept at defaults for quick runs
+    d_model: 64
+    n_attention_heads: 4
+    d_fusion: 64
+    readout: "xyz"          # "z" (Step 1) | "xyz" (Step 2, 3x n_qubits outputs)
+
   training:
-    epochs: 1  # Minimal epochs for quick testing
-    lr: 0.001
-  
+    epochs: 3               # Minimal epochs; keeps quick-run spirit but meets minimum
+    warmup_epochs: 1        # Phase A: 1 epoch of head-only training
+    lr: 0.001               # fallback LR for simple_cnn / gnn
+    head_lr: 0.001          # Phase A + Phase B head LR
+    backbone_lr: 0.0001     # Phase B backbone LR (lower than head)
+    label_smoothing: 0.05   # light smoothing even in quick runs
+    optimizer: "adam"
+    weight_decay: 0.0001
+    scheduler: "cosine"
+    early_stopping_patience: 6
+    grad_clip: 1.0
+
   quantum:
-    n_qubits: 2  # Minimal qubits for speed
-    n_layers: 1  # Minimal layers for speed
+    n_qubits: 2             # Minimal qubits for speed
+    n_layers: 1             # Minimal layers for speed
     data_reuploading: true
     noise_type: "ideal"
     noise_prob: 0.0
 
 # ============================================================================
 # RESOURCE ABLATION CONFIGURATION (Systematic resource analysis)
+# Purpose: sweep qubit/layer counts and data-reuploading to measure cost vs accuracy.
 # ============================================================================
 resource_ablation_study:
-  # Base quantum settings
+  # Base quantum settings (overridden per-run by ablation script)
   quantum:
     framework: "pennylane"
-    n_qubits: 4  # Will be overridden by ablation script
-    n_layers: 2  # Will be overridden by ablation script
+    n_qubits: 4             # Will be overridden by ablation script
+    n_layers: 2             # Will be overridden by ablation script
     encoding: "angle"
     entanglement: "circular"
     data_reuploading: true  # Will be overridden by ablation script
@@ -39,24 +64,40 @@ resource_ablation_study:
     device_name: "default.qubit"
     noise_type: "ideal"
     noise_prob: 0.0
-  
-  # Ablation experiment settings
+
+  fusion:
+    d_model: 64
+    n_attention_heads: 4
+    d_fusion: 64
+    readout: "xyz"
+
+  # Ablation experiment sweep settings
   ablation_experiments:
-    qubit_counts: [2, 4, 6, 8]  # Extended qubit range
-    layer_counts: [1, 2, 4, 6]  # Extended layer range
+    qubit_counts: [2, 4, 6, 8]   # Extended qubit range
+    layer_counts: [1, 2, 4, 6]   # Extended layer range
     reuploading_options: [true, false]
     models: ["hybrid"]
     representations: ["cnn", "gnn"]
-  
+
   training:
-    epochs: 5  # Moderate epochs for ablation study
+    epochs: 5               # Moderate epochs for ablation study
+    warmup_epochs: 1        # Short warmup to stay within budget
     lr: 0.001
+    head_lr: 0.001
+    backbone_lr: 0.0001
+    label_smoothing: 0.05
+    optimizer: "adam"
+    weight_decay: 0.0001
+    scheduler: "cosine"
+    early_stopping_patience: 6
+    grad_clip: 1.0
 
 # ============================================================================
 # NOISE ROBUSTNESS CONFIGURATION (NISQ device simulation)
+# Purpose: evaluate model degradation as hardware noise increases.
 # ============================================================================
 noise_robustness_study:
-  # Base quantum settings
+  # Base quantum settings (overridden per-run by noise script)
   quantum:
     framework: "pennylane"
     n_qubits: 4
@@ -67,21 +108,37 @@ noise_robustness_study:
     diff_method: "backprop"
     device_name: "default.qubit"
     noise_type: "bit_flip"  # Will be overridden by noise script
-    noise_prob: 0.01  # Will be overridden by noise script
-  
-  # Noise experiment settings
+    noise_prob: 0.01        # Will be overridden by noise script
+
+  fusion:
+    d_model: 64
+    n_attention_heads: 4
+    d_fusion: 64
+    readout: "xyz"
+
+  # Noise sweep settings
   noise_experiments:
     noise_types: ["ideal", "bit_flip", "phase_flip", "depolarizing"]
     noise_probabilities: [0.0, 0.001, 0.01, 0.05, 0.1]  # Fine-grained probabilities
     models: ["hybrid"]
     representations: ["cnn", "gnn"]
-  
+
   training:
-    epochs: 5  # Moderate epochs for noise study
+    epochs: 5               # Moderate epochs for noise study
+    warmup_epochs: 1
     lr: 0.001
+    head_lr: 0.001
+    backbone_lr: 0.0001
+    label_smoothing: 0.05
+    optimizer: "adam"
+    weight_decay: 0.0001
+    scheduler: "cosine"
+    early_stopping_patience: 6
+    grad_clip: 1.0
 
 # ============================================================================
 # STATISTICAL VALIDATION CONFIGURATION (Rigorous multi-seed analysis)
+# Purpose: produce mean ± std metrics over 5 seeds for the paper.
 # ============================================================================
 statistical_validation:
   project:
@@ -90,19 +147,33 @@ statistical_validation:
     seeds_for_stats: [42, 1, 7, 13, 21]  # 5 seeds for statistical power
     device: "auto"
     results_dir: "results"
-  
+
+  fusion:
+    d_model: 64
+    n_attention_heads: 4
+    d_fusion: 64
+    readout: "xyz"
+
   training:
-    epochs: 10  # Sufficient epochs for convergence
+    epochs: 10              # Sufficient epochs for convergence
+    warmup_epochs: 2
     lr: 0.001
+    head_lr: 0.001
+    backbone_lr: 0.00001
+    label_smoothing: 0.05
+    optimizer: "adam"
+    weight_decay: 0.0001
+    scheduler: "cosine"
     early_stopping_patience: 5
-  
+    grad_clip: 1.0
+
   quantum:
     n_qubits: 4
     n_layers: 2
     data_reuploading: true
     noise_type: "ideal"
     noise_prob: 0.0
-  
+
   # Statistical analysis settings
   statistical_analysis:
     primary_metric: "accuracy"
@@ -111,59 +182,90 @@ statistical_validation:
 
 # ============================================================================
 # EXPLAINABILITY CONFIGURATION (Model interpretability)
+# Purpose: generate GradCAM / GNN-Explainer outputs on a well-trained model.
 # ============================================================================
 explainability_study:
   project:
-    seed: 42  # Use fixed seed for consistent explainability
-  
+    seed: 42                # Fixed seed for reproducible explanations
+
+  fusion:
+    d_model: 64
+    n_attention_heads: 4
+    d_fusion: 64
+    readout: "xyz"
+
   training:
-    epochs: 10  # Well-trained model for explainability
-  
+    epochs: 10              # Well-trained model required for meaningful explanations
+    warmup_epochs: 2
+    lr: 0.001
+    head_lr: 0.001
+    backbone_lr: 0.00001
+    label_smoothing: 0.05
+    optimizer: "adam"
+    weight_decay: 0.0001
+    scheduler: "cosine"
+    early_stopping_patience: 6
+    grad_clip: 1.0
+
   quantum:
     n_qubits: 4
     n_layers: 2
     data_reuploading: true
-  
+
   # Explainability settings
   explainability:
     cnn:
-      method: "gradcam"  # Options: "gradcam", "gradcam++"
-      num_samples: 20  # More samples for comprehensive analysis
-      target_layers: ["last_conv"]  # Specify layers to explain
+      method: "gradcam"         # "gradcam" | "gradcam++"
+      num_samples: 20           # More samples for comprehensive analysis
+      target_layers: ["last_conv"]
     gnn:
       num_samples: 20
-      epochs: 200  # More epochs for better convergence
+      epochs: 200               # More epochs for better GNN-Explainer convergence
       lr: 0.01
       edge_mask_type: "object"
       node_mask_type: "attributes"
 
 # ============================================================================
 # CROSS-DATASET CONFIGURATION (Generalization analysis)
+# Purpose: train on one dataset, evaluate on another.
 # ============================================================================
 cross_dataset_study:
   project:
     seed: 42
-  
+
+  fusion:
+    d_model: 64
+    n_attention_heads: 4
+    d_fusion: 64
+    readout: "xyz"
+
   training:
     epochs: 10
-  
+    warmup_epochs: 2
+    lr: 0.001
+    head_lr: 0.001
+    backbone_lr: 0.00001
+    label_smoothing: 0.05
+    optimizer: "adam"
+    weight_decay: 0.0001
+    scheduler: "cosine"
+    early_stopping_patience: 6
+    grad_clip: 1.0
+
   quantum:
     n_qubits: 4
     n_layers: 2
     data_reuploading: true
-  
-  # Cross-dataset settings
+
+  # Cross-dataset settings (modify paths to your actual datasets)
   cross_dataset:
-    # Example dataset pairs (modify paths to your actual datasets)
     dataset_pairs:
       - "data/dataset_A: data/dataset_B"
       - "data/dataset_A: data/dataset_C"
       - "data/dataset_B: data/dataset_C"
-    
-    # Alternative: specify separate lists
     source_datasets: ["data/dataset_A", "data/dataset_B"]
     target_datasets: ["data/dataset_C", "data/dataset_D"]
-  
+
   data:
     # Ensure consistent preprocessing across datasets
     image_size: 96
@@ -174,6 +276,7 @@ cross_dataset_study:
 
 # ============================================================================
 # COMPREHENSIVE STUDY CONFIGURATION (Full experimental suite)
+# Purpose: paper-ready run with all bells and whistles.
 # ============================================================================
 comprehensive_study:
   project:
@@ -182,13 +285,26 @@ comprehensive_study:
     seeds_for_stats: [42, 1, 7, 13, 21, 34]  # 6 seeds for high statistical power
     device: "auto"
     results_dir: "results_comprehensive"
-  
+
+  fusion:
+    d_model: 64
+    n_attention_heads: 4
+    d_fusion: 64
+    readout: "xyz"
+
   training:
-    epochs: 15  # More epochs for comprehensive study
+    epochs: 15              # More epochs for comprehensive study
+    warmup_epochs: 3        # Matches config.yaml default warmup
     lr: 0.001
+    head_lr: 0.001
+    backbone_lr: 0.00001
+    label_smoothing: 0.05
+    optimizer: "adam"
+    weight_decay: 0.0001
+    scheduler: "cosine"
     early_stopping_patience: 8
     grad_clip: 1.0
-  
+
   quantum:
     framework: "pennylane"
     n_qubits: 4
@@ -200,21 +316,21 @@ comprehensive_study:
     device_name: "default.qubit"
     noise_type: "ideal"
     noise_prob: 0.0
-  
-  # All experimental configurations
+
+  # All experimental sub-configurations
   ablation_experiments:
     qubit_counts: [2, 4, 6, 8]
     layer_counts: [1, 2, 4, 6]
     reuploading_options: [true, false]
     models: ["hybrid"]
     representations: ["cnn", "gnn"]
-  
+
   noise_experiments:
     noise_types: ["ideal", "bit_flip", "phase_flip", "depolarizing"]
     noise_probabilities: [0.0, 0.001, 0.01, 0.05, 0.1]
     models: ["hybrid"]
     representations: ["cnn", "gnn"]
-  
+
   explainability:
     cnn:
       method: "gradcam"
@@ -223,10 +339,10 @@ comprehensive_study:
       num_samples: 30
       epochs: 200
       lr: 0.01
-  
+
   cross_dataset:
-    dataset_pairs: []  # Configure based on available datasets
-  
+    dataset_pairs: []       # Configure based on available datasets
+
   statistical_analysis:
     primary_metric: "accuracy"
     confidence_level: 0.95
@@ -234,42 +350,60 @@ comprehensive_study:
 
 # ============================================================================
 # COMPUTATIONAL BUDGET CONFIGURATION (Limited resources)
+# Purpose: run a meaningful (but small) experiment on CPU with tight memory.
 # ============================================================================
 limited_resources:
   project:
     seeds_for_stats: [42, 1]  # Only 2 seeds
-    device: "cpu"  # Force CPU usage
-  
+    device: "cpu"             # Force CPU usage
+
+  fusion:
+    # Keep fusion block at defaults; cross-attention is cheap at d_model=64
+    d_model: 64
+    n_attention_heads: 4
+    d_fusion: 64
+    readout: "xyz"
+
   training:
-    epochs: 3  # Minimal training
-    batch_size: 8  # Smaller batches
-    num_workers: 0  # No parallel data loading
-  
+    epochs: 3               # Minimal training
+    warmup_epochs: 1        # At least one warmup epoch
+    lr: 0.001
+    head_lr: 0.001
+    backbone_lr: 0.0001
+    label_smoothing: 0.0    # Disabled to reduce complexity on tiny run
+    optimizer: "adam"
+    weight_decay: 0.0001
+    scheduler: "cosine"
+    early_stopping_patience: 6
+    grad_clip: 1.0
+    batch_size: 8           # Smaller batches for memory
+    num_workers: 0          # No parallel data loading
+
   quantum:
-    n_qubits: 2  # Minimal qubits
-    n_layers: 1  # Minimal layers
-    diff_method: "backprop"  # Fastest gradient method
-  
+    n_qubits: 2             # Minimal qubits
+    n_layers: 1             # Minimal layers
+    diff_method: "backprop" # Fastest gradient method
+
   ablation_experiments:
-    qubit_counts: [2, 4]  # Reduced qubit range
-    layer_counts: [1, 2]  # Reduced layer range
-    reuploading_options: [true]  # Only test re-uploading
-  
+    qubit_counts: [2, 4]          # Reduced qubit range
+    layer_counts: [1, 2]          # Reduced layer range
+    reuploading_options: [true]   # Only test re-uploading
+
   noise_experiments:
-    noise_types: ["ideal", "bit_flip"]  # Only test 2 noise types
+    noise_types: ["ideal", "bit_flip"]      # Only 2 noise types
     noise_probabilities: [0.0, 0.01, 0.1]  # Reduced probability range
-  
+
   explainability:
     cnn:
-      num_samples: 5  # Fewer samples
+      num_samples: 5        # Fewer samples
     gnn:
       num_samples: 5
-      epochs: 50  # Fewer epochs
+      epochs: 50            # Fewer epochs
 
 # ============================================================================
 # NOTES AND RECOMMENDATIONS
 # ============================================================================
-# 
+#
 # 1. For initial testing, use the "quick_start" configuration
 # 2. For paper-ready results, use the "comprehensive_study" configuration
 # 3. For limited computational resources, use the "limited_resources" configuration
@@ -280,4 +414,14 @@ limited_resources:
 # 8. For cross-dataset studies, ensure datasets have compatible preprocessing
 # 9. Save configurations that work well for reproducibility
 # 10. Document any configuration changes in your experiment logs
+#
+# NEW IN THIS REVISION (Step 1 & Step 2 fields):
+#   fusion.d_model          — cross-attention embedding dim (default 64)
+#   fusion.n_attention_heads — number of attention heads (default 4)
+#   fusion.d_fusion          — post-fusion hidden dim (default 64)
+#   fusion.readout           — VQC readout mode: "z" or "xyz" (default "xyz")
+#   training.warmup_epochs   — Phase A head-only epochs (freeze backbone)
+#   training.head_lr         — LR for classification head in both phases
+#   training.backbone_lr     — LR for backbone in Phase B (unfrozen)
+#   training.label_smoothing — cross-entropy label smoothing (0.0 = off)
 #
