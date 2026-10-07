@@ -94,7 +94,7 @@ def run_single_seed(
     results_dir = Path("results")
     eval_log_path = (
         results_dir / "logs" / 
-        f"eval_{representation + '_' if representation == 'gnn' else ''}{model}_seed{seed}.json"
+        f"eval_{representation + '_' if representation != 'cnn' else ''}{model}_seed{seed}.json"
     )
     
     if eval_log_path.exists():
@@ -141,7 +141,7 @@ def aggregate_results(
     aggregated = aggregate_over_seeds(individual_results)
     
     # Add metadata
-    aggregated["model"] = f"{representation}_{model}" if representation == "gnn" else model
+    aggregated["model"] = model if representation == "cnn" else f"{representation}_{model}"
     aggregated["representation"] = representation
     aggregated["seeds"] = seeds
     aggregated["n_successful_runs"] = len(individual_results)
@@ -215,9 +215,9 @@ def main():
     parser.add_argument(
         "--representation",
         type=str,
-        choices=["cnn", "gnn"],
+        choices=["cnn", "gnn", "fusion"],
         default="cnn",
-        help="Representation type (cnn or gnn)"
+        help="Representation type (cnn, gnn, or fusion)"
     )
     parser.add_argument(
         "--config",

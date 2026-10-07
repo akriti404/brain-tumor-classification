@@ -117,7 +117,7 @@ def run_single_cross_dataset_experiment(
     results_dir = Path(base_config["project"]["results_dir"])
     eval_log_path = (
         results_dir / "logs" / 
-        f"eval_{representation + '_' if representation == 'gnn' else ''}{model}_seed{seed}.json"
+        f"eval_{representation + '_' if representation != 'cnn' else ''}{model}_seed{seed}.json"
     )
     
     if eval_log_path.exists():
@@ -218,7 +218,7 @@ def save_cross_dataset_results(
         for result in results:
             cross_data = result.get("cross_dataset", {})
             row = {
-                "model": f"{representation}_{model}" if representation == "gnn" else model,
+                "model": model if representation == "cnn" else f"{representation}_{model}",
                 "representation": representation,
                 "seed": result.get("seed"),
                 "source_dataset": cross_data.get("source_dataset"),
@@ -261,8 +261,8 @@ def main():
         "--representations",
         type=str,
         nargs="+",
-        choices=["cnn", "gnn"],
-        default=["cnn", "gnn"],
+        choices=["cnn", "gnn", "fusion"],
+        default=["cnn", "gnn", "fusion"],
         help="Representations to evaluate"
     )
     parser.add_argument(
