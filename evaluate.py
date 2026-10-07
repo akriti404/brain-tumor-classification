@@ -22,8 +22,19 @@ Step 2 changes:
 import argparse
 import csv
 import json
+import subprocess
 import time
 from pathlib import Path
+
+
+def _get_git_commit() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        return "unknown"
 
 import numpy as np
 import torch
@@ -58,6 +69,7 @@ RESULTS_TABLE_COLUMNS = [
     "circuit_depth",
     "training_time_sec",
     "inference_time_sec",
+    "git_commit",
 ]
 
 
@@ -279,6 +291,7 @@ def main():
         "circuit_depth": param_report.circuit_depth,
         "training_time_sec": training_time,
         "inference_time_sec": metrics["inference_time_sec"],
+        "git_commit": _get_git_commit(),
     }
 
     append_to_results_table(row, results_dir / "tables" / "experiment_results.csv")

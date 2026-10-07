@@ -32,8 +32,19 @@ Usage:
 import argparse
 import csv
 import json
+import subprocess
 import sys
 from pathlib import Path
+
+
+def _get_git_commit() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        return "unknown"
 
 import numpy as np
 import torch
@@ -157,6 +168,7 @@ def main():
         "precision_macro": metrics["precision_macro"], "recall_macro": metrics["recall_macro"],
         "f1_macro": metrics["f1_macro"], "f1_weighted": metrics["f1_weighted"],
         "roc_auc_ovr": metrics.get("roc_auc_ovr"), "specificity_macro": metrics.get("specificity_macro"),
+        "git_commit": _get_git_commit(),
     }
     write_header = not table_path.exists()
     with open(table_path, "a", newline="") as f:
