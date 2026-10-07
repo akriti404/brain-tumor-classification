@@ -17,6 +17,7 @@ import yaml
 from PIL import Image
 from pytorch_grad_cam import GradCAM, GradCAMPlusPlus
 from pytorch_grad_cam.utils.image import show_cam_on_image
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -86,7 +87,7 @@ def get_target_layers(model: nn.Module) -> List[nn.Module]:
     
     if not target_layers:
         # Fallback: find any Conv2d layer
-        for name, module in model.modules():
+        for name, module in model.named_modules():
             if isinstance(module, nn.Conv2d):
                 target_layers.append(module)
                 print(f"Fallback target layer: {name}")
@@ -122,7 +123,7 @@ def generate_gradcam_explanation(
     input_tensor = image.unsqueeze(0).to(device)
     
     # Generate CAM
-    targets = [target_class]
+    targets = [ClassifierOutputTarget(target_class)]
     grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
     grayscale_cam = grayscale_cam[0, :]  # Remove batch dimension
     
