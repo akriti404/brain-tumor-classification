@@ -36,3 +36,8 @@ build/
 
 # Local/generated datasets
 data/raw/
+
+# Temp config directories
+temp_ablation_configs/
+temp_cross_dataset_configs/
+results/explainability/error_analysis/*.png
