@@ -1,74 +1,59 @@
 # Brain Tumor Classification — Hybrid Quantum-Classical MRI Framework
 
-A controlled comparative framework for evaluating **classical (CNN)** and **graph-based (GNN)**
-representations within a hybrid quantum-classical pipeline for brain MRI tumor classification,
-using a shared **Variational Quantum Classifier (VQC)** implemented in PennyLane.
-
-This is **not** a single novel CNN-GNN-VQC architecture. It is two independent, directly
-comparable pipelines — CNN-VQC and GNN-VQC — that share the same quantum classifier and
-evaluation harness, enabling a controlled comparison of classical vs. graph-based representations
-under identical quantum-resource and noise conditions.
+A controlled comparative framework for evaluating **classical (CNN)**, **graph-based (GNN)**, and a novel **cross-attention CNN+GNN fusion** representation within a hybrid quantum-classical pipeline for brain MRI tumor classification, using a shared **Variational Quantum Classifier (VQC)** implemented in PennyLane.
 
 ```
-                    ┌── CNN → Dimensional Reduction ──┐
-MRI → Preprocessing ┤                                 ├→ VQC → Classifier
-                    └── Superpixels → GNN → Reduction ─┘
+                    ┌── CNN ──────────────────────────┐
+                    │                                  │
+MRI → Preprocessing ┤                                  ├→ Cross-Attention Fusion → VQC → Classifier
+                    │                                  │
+                    └── Superpixels → GNN ─────────────┘
 ```
+
+Unlike treating CNN-VQC and GNN-VQC as two independent, non-interacting pipelines (the common pattern in prior hybrid-QML literature), this project's core contribution is letting the two representations exchange information **before** the quantum layer, via learned cross-attention — the graph's superpixel-node embeddings attend over the CNN's spatial feature map, and a gated fusion mechanism learns how much to trust each source per sample. The VQC itself also uses a multi-observable (X/Y/Z) readout rather than single-basis measurement, extracting 3x more classical information from the same circuit at no extra qubit or depth cost.
 
 ---
 
-## Project status
+## Current results
 
-| Component | Status |
-|---|---|
-| Dataset pipeline & preprocessing | ✅ Implemented |
-| Classical baselines (Simple CNN, ResNet18, MobileNetV2, proposed classical model) | ✅ Implemented |
-| CNN → VQC hybrid branch | ✅ Implemented |
-| GNN → VQC hybrid branch | ✅ Implemented |
-| Shared PennyLane VQC (RY encoding, data re-uploading) | ✅ Implemented, shared unmodified across both branches |
-| Training / evaluation harness (seeds, splits, metrics, logging) | ✅ Implemented, consistent across CNN and GNN branches |
-| Visualization / figure generation | ✅ Implemented |
-| Qubit / layer / re-uploading ablations | ⬜ Not yet run |
-| Noise experiments (bit-flip, phase-flip, depolarizing) | ⬜ Not yet run |
-| Multi-seed statistical validation | ⬜ Not yet run |
-| Explainability (Grad-CAM / GNNExplainer) | ⬜ Not yet run |
-| Cross-dataset generalization | ⬜ Not yet run |
+Test set (891 held-out images, patient-level split), seed 42 — all models below trained and evaluated under the same pipeline, directly comparable:
+
+| Model | Accuracy | F1-macro | Notes |
+|---|---|---|---|
+| `gnn_hybrid` (GNN → VQC, standalone) | ~40% | ~31% | weak — from-scratch GCN lacks a pretrained backbone's signal; kept as a baseline for the fusion ablation, excluded from the ensemble |
+| `classical_proposed` (CNN → classical head, no VQC) | 92.4% | 92.1% | strongest single model |
+| `hybrid` (CNN → VQC) | 91.1% | 90.9% | |
+| **`fusion_hybrid` (CNN+GNN cross-attention → multi-observable VQC)** | **91.9%** | **90.6%** | novel architecture, single model |
+| `classical_proposed` + TTA | 93.2% | 92.9% | horizontal-flip test-time augmentation |
+| `fusion_hybrid` + TTA | 93.0% | 92.9% | TTA rebuilds the SLIC graph on the flipped image, not just the flipped CNN input |
+| **Ensemble: `classical_proposed` + `fusion_hybrid` (TTA'd, soft-vote)** | **93.4%** | **93.2%** | **best result** |
+
+**Honest assessment**: the fusion architecture measurably outperforms the plain (non-fused) CNN-VQC baseline, and ensembling it with the strongest classical ablation pushes further still — but it does not yet beat the classical-only (no-VQC) baseline as a standalone model. Error analysis (Grad-CAM) identified a specific, data-provenance-linked bottleneck behind most of the remaining error — not a vague "needs more tuning" situation. See [Known limitations](#known-limitations) below.
 
 ---
 
 ## Architecture
 
-### Shared CNN-to-VQC / GNN-to-VQC contract
+### Shared VQC
 
-Both representation branches are required to produce output matching this exact interface before
-entering the shared quantum layer:
+All three representation branches (CNN, GNN, fusion) feed a shared quantum layer (`models/quantum.py`) that:
+1. Scales reduced classical features by π
+2. Applies RY angle encoding with data re-uploading at every variational layer
+3. Uses circular/linear/full entanglement (configurable)
+4. Measures either single-basis (`readout: "z"`, `n_qubits` outputs) or multi-basis (`readout: "xyz"`, `3·n_qubits` outputs — used by the fusion model) expectation values
 
-- Output shape: `(B, n_qubits)`
-- Value range: bounded to `[-1, 1]` via `tanh`
-- `n_qubits` is read from shared config (default `4`) — changing it affects both branches identically
+### CNN branch (`models/hybrid.py`)
+MobileNetV2 or ResNet18 backbone → linear reduction to `n_qubits`, `tanh`-bounded → VQC → classifier head that sees `concat(reduced_features, quantum_output)` (residual path).
 
-The shared VQC (`quantum.py`) then:
-1. Scales inputs by `π`
-2. Applies RY angle encoding
-3. Re-uploads features at every variational layer
-4. Returns `(B, n_qubits)` expectation values to the shared classifier head (`hybrid.py`)
+### GNN branch (`models/gnn_hybrid.py`)
+SLIC superpixel segmentation (`models/graph.py`) → region-adjacency graph → 2-layer GCN with mean/max pooling → same reduction/VQC/residual-classifier pattern as the CNN branch.
 
-### CNN branch
-
-- Input: `(B, 3, 96, 96)` RGB tensors, ImageNet-normalized (`dataset.py`)
-- Backbone: MobileNetV2 (`(B, 1280)`) or ResNet18 (`(B, 512)`) (`classical.py`)
-- Reducer: linear projection → `(B, n_qubits)`, `tanh`-bounded
-
-### GNN branch
-
-- Input: the same preprocessed `(B, 3, 96, 96)` tensors, de-normalized back to display-space RGB
-- Graph construction (`mri_to_graph()`): SLIC superpixel segmentation → region-adjacency graph
-  - Node features: mean intensity, texture/std stats, centroid `(x, y)`, region area
-  - Edges: spatial adjacency between superpixels, optionally weighted by intensity similarity
-- Encoder: 2–3 layer GCN with global mean/max pooling → graph-level embedding
-- Reducer: independently-weighted linear projection (mirrors the CNN reducer's pattern) →
-  `(B, n_qubits)`, `tanh`-bounded
-- Feeds into the same, unmodified VQC
+### Fusion branch (`models/fusion.py`) — the novel contribution
+- MobileNetV2's *spatial* feature map (not pooled) provides CNN tokens.
+- A from-scratch GCN provides *per-node* (per-superpixel) embeddings, not pooled.
+- **Cross-attention**: each sample's graph nodes (queries) attend over that *same* sample's CNN spatial tokens (keys/values), computed per-sample to respect batch boundaries exactly.
+- **Gated fusion**: a learned sigmoid gate blends the CNN-global vector with the attention-pooled graph vector, rather than fixed concatenation.
+- Feeds the shared VQC with multi-observable (`"xyz"`) readout.
 
 ---
 
@@ -76,126 +61,128 @@ The shared VQC (`quantum.py`) then:
 
 ```
 data/
-  raw/                          # MRI images (synthetic generator available for testing)
-  synthetic_data_generator.py   # Generates placeholder data if raw/ is empty
-  dataset_inspector.py          # Dataset sanity-check / stats CLI
-dataset.py                      # Preprocessing, normalization, DataLoader
+  raw/                           # MRI images (not committed; see Dataset setup)
+  dataset.py                     # Preprocessing, splits, transforms, CropToContent (margin-removal, off by default)
+  fusion_dataset.py              # (image, graph, label) dataloaders for the fusion branch
+  dataset_inspector.py           # Dataset sanity-check / stats CLI
+  synthetic_data_generator.py    # Placeholder data generator (sandboxed/offline testing only)
 models/
-  classical.py                  # Simple CNN, ResNet18, MobileNetV2, proposed classical model
-  quantum.py                    # Shared PennyLane VQC (VariationalQuantumLayer)
-  hybrid.py                     # CNN-VQC hybrid model, shared classifier head
-  graph.py                      # mri_to_graph() — SLIC + region-adjacency graph construction
-  gnn_hybrid.py                 # GNN encoder + reducer + GNN-VQC hybrid model
-utils/                          # Shared helpers (seeding, metrics, logging, checkpoints)
-visualization/
-  plots.py                      # Figure generation from evaluation results
-train.py                        # Training entry point (--model, --representation flags)
-evaluate.py                     # Evaluation entry point
+  classical.py                   # Simple CNN, ResNet18, MobileNetV2, classical-only proposed head
+  quantum.py                     # Shared PennyLane VQC (single- or multi-observable readout)
+  hybrid.py                      # CNN → VQC branch
+  gnn_hybrid.py                  # GNN → VQC branch
+  graph.py                       # SLIC superpixel graph construction
+  fusion.py                      # Cross-attention CNN+GNN → VQC branch (novel contribution)
+utils/                           # Seeding, metrics, parameter accounting
+experiments/
+  ensemble.py                    # Soft-vote ensemble over trained checkpoints
+  tta_evaluate.py                # Horizontal-flip test-time augmentation
+  ensemble_from_tta.py           # Combines saved TTA predictions (instant, no retraining)
+  explainability_errors.py       # Error-targeted Grad-CAM (glioma<->meningioma misclassifications)
+  explainability_cnn.py          # Grad-CAM, general sampling (not yet validated against current pytorch_grad_cam version)
+  explainability_gnn.py          # GNNExplainer-based GNN explanations
+  resource_ablations.py          # Qubit/layer/re-uploading ablation sweep (cnn/gnn only — see note below)
+  noise_experiments.py           # NISQ noise-robustness sweep (cnn/gnn only — see note below)
+  multi_seed_runner.py           # Multi-seed statistical validation (cnn/gnn only — see note below)
+  cross_dataset.py               # Cross-dataset generalization harness
+  statistical_analysis.py        # Hypothesis testing / confidence intervals / effect sizes
+tests/                           # pytest unit tests (see Testing below)
+visualization/plots.py           # Figure generation from results
+train.py                         # Training entry point (--model, --representation)
+evaluate.py                      # Evaluation entry point
+configs/config.yaml              # Single master config
 requirements.txt
 ```
+
+> **Note**: `resource_ablations.py`, `noise_experiments.py`, and `multi_seed_runner.py` currently only support `--representation cnn` or `gnn` — they predate the fusion branch and need their checkpoint-naming logic updated before running against `--representation fusion`.
 
 ---
 
 ## Setup
 
-Run from the project root, in order.
-
-### 1. Activate the environment
+### 1. Environment
 ```powershell
-.\.venv\Scripts\Activate.ps1
+python -m venv .venv
+.venv\Scripts\Activate.ps1      # Windows PowerShell; use .venv/bin/activate on Linux/Mac
+python -m pip install -r requirements.txt
+python -m pip install pennylane-lightning   # required for the fast quantum backend, see below
 ```
 
-### 2. Install dependencies
+### 2. Dataset
+Point `configs/config.yaml`'s `data.root` at an ImageFolder-layout directory (`root/<class_name>/*.jpg`), four classes: `glioma`, `meningioma`, `notumor`, `pituitary`. The Kaggle **Brain Tumor MRI Dataset** (`masoudnickparvar/brain-tumor-mri-dataset`) is what this project was developed and evaluated against:
 ```powershell
-pip install -r requirements.txt
+python -m data.download_kaggle_dataset --out data/raw
 ```
+If `data/raw` is empty and `data.synthetic_fallback: true` is set, a synthetic placeholder dataset is generated automatically — useful for smoke-testing the pipeline, **not** for any reported result.
 
-### 3. Generate synthetic data (only if `data/raw` is empty)
-```powershell
-python data/synthetic_data_generator.py
-```
+**Dataset provenance note**: this dataset merges three source datasets (figshare, SARTAJ, Br35H) with inconsistent native image resolutions and framing conventions. This was found, via Grad-CAM error analysis, to contribute to the project's main remaining error source (glioma↔meningioma confusion) — see [Known limitations](#known-limitations).
 
-### 4. Inspect the dataset
+### 3. Verify the dataset
 ```powershell
 python -m data.dataset_inspector --root data/raw
 ```
 
+### 4. Run the tests
+```powershell
+python -m pytest tests/ -v
+```
+
 ---
 
-## Running experiments
+## Reproducing results
 
-### CNN-VQC branch
 ```powershell
-python train.py --model hybrid --representation cnn
-python evaluate.py --model hybrid --representation cnn
+# Train the three models used in the best (ensemble) result
+python train.py --model classical_proposed --config configs/config.yaml
+python train.py --model hybrid --representation cnn --config configs/config.yaml
+python train.py --model hybrid --representation fusion --config configs/config.yaml
+
+# Evaluate individually
+python evaluate.py --model classical_proposed --config configs/config.yaml
+python evaluate.py --model hybrid --representation cnn --config configs/config.yaml
+python evaluate.py --model hybrid --representation fusion --config configs/config.yaml
+
+# Test-time augmentation
+python experiments/tta_evaluate.py --model classical_proposed --representation cnn --config configs/config.yaml
+python experiments/tta_evaluate.py --model hybrid --representation fusion --config configs/config.yaml
+
+# Ensemble the TTA'd predictions (instant)
+python experiments/ensemble_from_tta.py --config configs/config.yaml \
+    --models classical_proposed hybrid --representations cnn fusion
 ```
 
-### GNN-VQC branch
+GNN-only branch (weak standalone, kept for the fusion ablation comparison):
 ```powershell
-python train.py --model hybrid --representation gnn
-python evaluate.py --model hybrid --representation gnn
+python train.py --model hybrid --representation gnn --config configs/config.yaml
 ```
 
-### Classical baselines (optional)
+### Error analysis / explainability
 ```powershell
-python train.py --model simple_cnn
-python evaluate.py --model simple_cnn
-
-python train.py --model resnet18
-python evaluate.py --model resnet18
-
-python train.py --model mobilenet_v2
-python evaluate.py --model mobilenet_v2
-
-python train.py --model classical_proposed
-python evaluate.py --model classical_proposed
+python experiments/explainability_errors.py --model classical_proposed --representation cnn --config configs/config.yaml
+python experiments/explainability_errors.py --model hybrid --representation fusion --config configs/config.yaml
 ```
+Finds and visualizes (Grad-CAM) every test-set misclassification within the glioma↔meningioma confusion pair specifically, rather than a random sample.
 
-### Generate figures (after evaluations)
+### Generate figures
 ```powershell
 python -m visualization.plots
 ```
 
-> Files inside `models/`, `dataset.py`, and `utils/` are imported automatically — do not run them
-> directly. Each `evaluate.py` call must follow its matching `train.py` call.
+> Files inside `models/`, `data/`, and `utils/` are imported automatically — don't run them directly. Each `evaluate.py` call must follow its matching `train.py` call (it loads that model's checkpoint).
 
-## Experimental axes (planned)
+---
 
-```
-Representation
-    ├── CNN
-    └── GNN
-          ↓
-Quantum model
-    ├── VQC
-    └── Quantum Kernel (if feasible)
-          ↓
-Resource
-    ├── 2 / 4 / 6 qubits
-    ├── 1 / 2 / 4 layers
-    └── Re-uploading ON / OFF
-          ↓
-Noise
-    ├── Ideal
-    ├── Bit-flip
-    ├── Phase-flip
-    └── Depolarizing
-          ↓
-Evaluation
-    ├── Performance
-    ├── Resource efficiency
-    ├── Explainability
-    └── Cross-dataset generalization
-```
+## Known limitations
+
+- **Error is concentrated, not diffuse.** `notumor` and `pituitary` are both >98% recall; essentially all remaining error (best ensemble result, 93.4% overall) is the glioma↔meningioma confusion pair.
+- **Grad-CAM analysis found this confusion is partly a dataset-provenance artifact**, not purely a modeling limitation — misclassified cases frequently show model attention on skull/scalp/background regions rather than brain tissue, consistent with the dataset's multi-source origin (different framing/resolution conventions per tumor class). A margin-removal preprocessing fix was implemented and tested (`data/dataset.py`'s `CropToContent`, toggled via `data.margin_crop`) but **regressed accuracy on every model tested** and is disabled by default — a negative result, kept in the codebase and documented rather than discarded.
+- **The GNN-only branch is weak** (~40% accuracy) — a from-scratch 2-layer GCN on hand-crafted SLIC features doesn't carry much signal without the fusion architecture's access to CNN features.
+- **The fusion model's novelty improves on the non-fused CNN-VQC baseline but not on the classical-only (no-VQC) ablation** as a standalone model — the quantum component's net contribution, isolated, is not yet a clear win; ensembling and TTA (classical techniques, not novel) account for most of the gain over the classical baseline in the current best result.
+
+---
 
 ## Research framing
 
-This project studies:
+> A controlled comparative framework for evaluating classical, graph-based, and cross-attention-fused representations within hybrid quantum-classical brain MRI classification, with a multi-observable VQC readout, validated through test-time augmentation, ensembling, and error-targeted explainability analysis.
 
-> A controlled comparative framework for evaluating classical and graph-based representations
-> within hybrid quantum-classical brain MRI classification, while systematically quantifying the
-> effects of quantum resources, NISQ noise, explainability, and cross-dataset generalization.
-
-The current implementation (CNN-VQC + GNN-VQC on a shared VQC) is the **foundation** for this
-study. The ablation, noise, explainability, and cross-dataset experiments listed above are the
-next phase, not yet run.
+Planned/scaffolded but not yet executed at the time of writing: full qubit/layer/re-uploading ablation sweep, NISQ noise-robustness study, multi-seed statistical validation, and cross-dataset generalization testing — the scripts exist (`experiments/`) but need the fusion-representation support described above before running against the current best architecture.
