@@ -79,11 +79,11 @@ experiments/
   tta_evaluate.py                # Horizontal-flip test-time augmentation
   ensemble_from_tta.py           # Combines saved TTA predictions (instant, no retraining)
   explainability_errors.py       # Error-targeted Grad-CAM (glioma<->meningioma misclassifications)
-  explainability_cnn.py          # Grad-CAM, general sampling (not yet validated against current pytorch_grad_cam version)
+  explainability_cnn.py          # Grad-CAM, general sampling
   explainability_gnn.py          # GNNExplainer-based GNN explanations
-  resource_ablations.py          # Qubit/layer/re-uploading ablation sweep (cnn/gnn only — see note below)
-  noise_experiments.py           # NISQ noise-robustness sweep (cnn/gnn only — see note below)
-  multi_seed_runner.py           # Multi-seed statistical validation (cnn/gnn only — see note below)
+  resource_ablations.py          # Qubit/layer/re-uploading ablation sweep
+  noise_experiments.py           # NISQ noise-robustness sweep
+  multi_seed_runner.py           # Multi-seed statistical validation
   cross_dataset.py               # Cross-dataset generalization harness
   statistical_analysis.py        # Hypothesis testing / confidence intervals / effect sizes
 tests/                           # pytest unit tests (see Testing below)
@@ -94,7 +94,7 @@ configs/config.yaml              # Single master config
 requirements.txt
 ```
 
-> **Note**: `resource_ablations.py`, `noise_experiments.py`, and `multi_seed_runner.py` currently only support `--representation cnn` or `gnn` — they predate the fusion branch and need their checkpoint-naming logic updated before running against `--representation fusion`.
+> **Note on noise experiments**: `noise_experiments.py` requires `device_name: "default.mixed"` in `configs/config.yaml` for non-ideal noise runs — `lightning.qubit` (the default, fast backend) does not support PennyLane noise channels. Switch the config before running that script.
 
 ---
 
@@ -105,8 +105,10 @@ requirements.txt
 python -m venv .venv
 .venv\Scripts\Activate.ps1      # Windows PowerShell; use .venv/bin/activate on Linux/Mac
 python -m pip install -r requirements.txt
-python -m pip install pennylane-lightning   # required for the fast quantum backend, see below
+python -m pip install pennylane-lightning   # required for the fast quantum backend (~3x speedup vs default.qubit)
 ```
+
+> **Quantum backend note**: the default backend is `lightning.qubit` with `adjoint` differentiation (~3.3x faster than `default.qubit`). It is a state-vector simulator and does **not** support PennyLane noise channels. For noise experiments, set `quantum.device_name: "default.mixed"` in `configs/config.yaml` before running `experiments/noise_experiments.py`.
 
 ### 2. Dataset
 Point `configs/config.yaml`'s `data.root` at an ImageFolder-layout directory (`root/<class_name>/*.jpg`), four classes: `glioma`, `meningioma`, `notumor`, `pituitary`. The Kaggle **Brain Tumor MRI Dataset** (`masoudnickparvar/brain-tumor-mri-dataset`) is what this project was developed and evaluated against:
@@ -168,7 +170,7 @@ Finds and visualizes (Grad-CAM) every test-set misclassification within the glio
 python -m visualization.plots
 ```
 
-> Files inside `models/`, `data/`, and `utils/` are imported automatically — don't run them directly. Each `evaluate.py` call must follow its matching `train.py` call (it loads that model's checkpoint).
+> Files inside `models/`, `data/`, and `utils/` are imported automatically — don't run them directly. Each `evaluate.py` call must follow its matching `train.py` call (it loads that model's checkpoint). All scripts that write to `results/tables/` now include a `git_commit` column (short SHA) so result rows from different code versions are distinguishable.
 
 ---
 
