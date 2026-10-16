@@ -170,6 +170,8 @@ def main():
     parser.add_argument("--representation", choices=["cnn", "gnn", "fusion"], default="cnn")
     parser.add_argument("--test_root", type=str, default=None,
                          help="Optional external ImageFolder root to evaluate without splitting")
+    parser.add_argument("--predictions_csv", type=str, default=None,
+                         help="Optional CSV output for per-image predictions and class probabilities")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -258,6 +260,36 @@ def main():
     # Evaluate
     # ---------------------------------------------------------
     metrics, y_true, y_pred, y_prob = evaluate_model(model, test_loader, device, n_classes, args.representation)
+
+    if args.predictions_csv:
+        samples = getattr(test_loader.dataset, "samples", None)
+        if samples is None or len(samples) != len(y_true):
+            raise ValueError(
+                "Cannot export per-image predictions: test dataset samples are unavailable "
+                "or do not match the evaluation output."
+            )
+
+        predictions_path = Path(args.predictions_csv)
+        predictions_path.parent.mkdir(parents=True, exist_ok=True)
+        fieldnames = ["image_path", "true_index", "true_class", "predicted_index", "predicted_class"]
+        fieldnames.extend(f"probability_{class_name}" for class_name in classes)
+        with open(predictions_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for sample, true_idx, pred_idx, probabilities in zip(samples, y_true, y_pred, y_prob):
+                row = {
+                    "image_path": sample[0],
+                    "true_index": int(true_idx),
+                    "true_class": classes[int(true_idx)],
+                    "predicted_index": int(pred_idx),
+                    "predicted_class": classes[int(pred_idx)],
+                }
+                row.update({
+                    f"probability_{class_name}": float(probability)
+                    for class_name, probability in zip(classes, probabilities)
+                })
+                writer.writerow(row)
+        print(f"Saved per-image predictions: {predictions_path}")
 
     # ---------------------------------------------------------
     # Save evaluation log

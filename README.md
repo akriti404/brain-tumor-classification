@@ -144,6 +144,10 @@ python evaluate.py --model classical_proposed --config configs/config.yaml
 python evaluate.py --model hybrid --representation cnn --config configs/config.yaml
 python evaluate.py --model hybrid --representation fusion --config configs/config.yaml
 
+# Evaluate on a separate ImageFolder test set and retain per-image predictions
+python evaluate.py --model hybrid --representation cnn --config configs/config.yaml `
+    --test_root data/kaggle_test --predictions_csv results/predictions/official_test/hybrid_seed42.csv
+
 # Test-time augmentation
 python experiments/tta_evaluate.py --model classical_proposed --representation cnn --config configs/config.yaml
 python experiments/tta_evaluate.py --model hybrid --representation fusion --config configs/config.yaml
@@ -171,6 +175,14 @@ python -m visualization.plots
 ```
 
 > Files inside `models/`, `data/`, and `utils/` are imported automatically — don't run them directly. Each `evaluate.py` call must follow its matching `train.py` call (it loads that model's checkpoint). All scripts that write to `results/tables/` now include a `git_commit` column (short SHA) so result rows from different code versions are distinguishable.
+
+### Journal figures
+
+After exporting per-image predictions for the same models and test cohort, generate the publication-oriented comparison figures with:
+```powershell
+python -m visualization.journal_figures
+```
+Figures (PNG and PDF), captions/findings, and seed/per-class summary tables are written under `results/figures/journal/` and `results/tables/`. The current comparison uses the audited official test cohort and records the limitation that the classical model has only one completed seed.
 
 ---
 
