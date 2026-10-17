@@ -169,6 +169,16 @@ python experiments/explainability_errors.py --model hybrid --representation fusi
 ```
 Finds and visualizes (Grad-CAM) every test-set misclassification within the glioma↔meningioma confusion pair specifically, rather than a random sample.
 
+### Paired journal Grad-CAM
+
+Create a side-by-side figure using the same audited official-test images for the classical model and hybrid CNN-VQC:
+```powershell
+python experiments/paired_gradcam_journal.py --seed 42 --config configs/config.yaml
+```
+The script uses `data/kaggle_test_unique_train_disjoint` and `results/tables/official_test_integrity_audit.csv` by default. For each true class, it deterministically selects the first both-models-correct example and one error example, prioritizing glioma↔meningioma confusions. It verifies the selected predictions and confidences against the saved seed-42 evaluation predictions and uses the configured evaluation preprocessing.
+
+Outputs are written to `results/explainability/journal_paired_seed42/`: a PNG and PDF figure, plus CSV/JSON manifests recording selected filenames, true labels, predictions, confidence, selection rule, and preprocessing. Grad-CAM is computed for each model's predicted class; the hybrid heatmap explains gradients through its CNN feature extractor and is not a direct visualization of the VQC's internal computation.
+
 ### Generate figures
 ```powershell
 python -m visualization.plots

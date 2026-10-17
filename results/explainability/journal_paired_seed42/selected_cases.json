@@ -1,0 +1,157 @@
+{
+  "seed": 42,
+  "test_root": "data\\kaggle_test_unique_train_disjoint",
+  "audit_csv": "results\\tables\\official_test_integrity_audit.csv",
+  "selection_rule": "For each true class, select the lexicographically first case correctly classified by both models and one error case; prioritize glioma/meningioma cross-confusions, then cases where exactly one model is incorrect.",
+  "preprocessing": {
+    "image_size": 96,
+    "margin_crop": false,
+    "normalization": "ImageNet mean and standard deviation"
+  },
+  "cases": [
+    {
+      "example_type": "both_correct",
+      "image_path": "glioma\\gl-0013.jpg",
+      "sha256": "3B7B3EE8C1B828B249EC8362B9163258552263F98C9E817F928A0C7203864E54",
+      "true_class": "glioma",
+      "predictions": {
+        "classical_proposed": {
+          "predicted_class": "glioma",
+          "confidence": 0.9571806788444519,
+          "correct": true
+        },
+        "hybrid": {
+          "predicted_class": "glioma",
+          "confidence": 0.9406827688217163,
+          "correct": true
+        }
+      }
+    },
+    {
+      "example_type": "at_least_one_model_incorrect",
+      "image_path": "glioma\\gl-0614.jpg",
+      "sha256": "0BDBD0CA07B1F68D4DE889077AFC7F21D06F2DD8453A74546E16A705284462A4",
+      "true_class": "glioma",
+      "predictions": {
+        "classical_proposed": {
+          "predicted_class": "glioma",
+          "confidence": 0.9035994410514832,
+          "correct": true
+        },
+        "hybrid": {
+          "predicted_class": "meningioma",
+          "confidence": 0.4860835373401642,
+          "correct": false
+        }
+      }
+    },
+    {
+      "example_type": "both_correct",
+      "image_path": "meningioma\\me-0007.jpg",
+      "sha256": "0317674510CACE344324C4C809728972C43F76A9502C52E21788672E20C96377",
+      "true_class": "meningioma",
+      "predictions": {
+        "classical_proposed": {
+          "predicted_class": "meningioma",
+          "confidence": 0.9376434087753296,
+          "correct": true
+        },
+        "hybrid": {
+          "predicted_class": "meningioma",
+          "confidence": 0.9687231779098511,
+          "correct": true
+        }
+      }
+    },
+    {
+      "example_type": "at_least_one_model_incorrect",
+      "image_path": "meningioma\\me-0015.jpg",
+      "sha256": "A7E18B28461707D3E8D7682958FBB9B669EBD645E4B0702CDCC856677319C271",
+      "true_class": "meningioma",
+      "predictions": {
+        "classical_proposed": {
+          "predicted_class": "glioma",
+          "confidence": 0.7603676915168762,
+          "correct": false
+        },
+        "hybrid": {
+          "predicted_class": "meningioma",
+          "confidence": 0.949959933757782,
+          "correct": true
+        }
+      }
+    },
+    {
+      "example_type": "both_correct",
+      "image_path": "notumor\\no-0002.jpg",
+      "sha256": "79F84D67E7BC8F7984C795F3E882430F9EBC2DABDCE712A24E183DBA92431215",
+      "true_class": "notumor",
+      "predictions": {
+        "classical_proposed": {
+          "predicted_class": "notumor",
+          "confidence": 0.9667760133743286,
+          "correct": true
+        },
+        "hybrid": {
+          "predicted_class": "notumor",
+          "confidence": 0.9626844525337219,
+          "correct": true
+        }
+      }
+    },
+    {
+      "example_type": "at_least_one_model_incorrect",
+      "image_path": "notumor\\no-0212.jpg",
+      "sha256": "098EADAF0E35AEF92003CA4352795E7156A19F303B9516CB371EFDA69EECE18D",
+      "true_class": "notumor",
+      "predictions": {
+        "classical_proposed": {
+          "predicted_class": "notumor",
+          "confidence": 0.5870578289031982,
+          "correct": true
+        },
+        "hybrid": {
+          "predicted_class": "glioma",
+          "confidence": 0.42682984471321106,
+          "correct": false
+        }
+      }
+    },
+    {
+      "example_type": "both_correct",
+      "image_path": "pituitary\\pi-0004.jpg",
+      "sha256": "5C32A70EFEDEFD69DB06C66FA133D214685BB53195CC2D1CE1BB235BDD137DA3",
+      "true_class": "pituitary",
+      "predictions": {
+        "classical_proposed": {
+          "predicted_class": "pituitary",
+          "confidence": 0.9561861753463745,
+          "correct": true
+        },
+        "hybrid": {
+          "predicted_class": "pituitary",
+          "confidence": 0.9493665099143982,
+          "correct": true
+        }
+      }
+    },
+    {
+      "example_type": "at_least_one_model_incorrect",
+      "image_path": "pituitary\\pi-0409.jpg",
+      "sha256": "852BE46F03CB7B00ACE268FABB7C03DDC9A3D506C519CAF910D37BA1096B50E4",
+      "true_class": "pituitary",
+      "predictions": {
+        "classical_proposed": {
+          "predicted_class": "meningioma",
+          "confidence": 0.6431277394294739,
+          "correct": false
+        },
+        "hybrid": {
+          "predicted_class": "pituitary",
+          "confidence": 0.7173219919204712,
+          "correct": true
+        }
+      }
+    }
+  ]
+}
