@@ -72,7 +72,7 @@ quantum:
   noise_prob: 0.0                # Noise probability (0.0 = no noise)
 
 training:
-  epochs: 30                # total epochs across BOTH phases (warmup + fine-tune)
+  epochs: 50                # maximum epochs across BOTH phases; early stopping may stop sooner
   warmup_epochs: 3           # Phase A: backbone frozen, head-only, at head_lr
   lr: 0.0001                # fallback LR for models with no pretrained backbone (simple_cnn, gnn)
   head_lr: 0.001             # Phase A LR and Phase B head-group LR

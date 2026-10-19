@@ -1,0 +1,135 @@
+project:
+  name: hybrid-qcnn-brain-tumor
+  seed: 42
+  seeds_for_stats:
+  - 42
+  - 1
+  - 7
+  device: auto
+  results_dir: results/epochs50
+data:
+  root: data/raw
+  synthetic_fallback: false
+  image_size: 96
+  channels: 3
+  val_frac: 0.15
+  test_frac: 0.15
+  patient_level_split: true
+  margin_crop: false
+  batch_size: 32
+  num_workers: 0
+  augmentation:
+    horizontal_flip: true
+    rotation_degrees: 10
+    brightness_jitter: 0.1
+  class_imbalance_strategy: weighted_sampler
+classical_backbone:
+  architecture: mobilenet_v2
+  pretrained: true
+  freeze_backbone: false
+  feature_dim: 1280
+  reduced_dim: 8
+graph:
+  n_segments: 32
+  compactness: 10.0
+  hidden_dim: 32
+  num_layers: 2
+fusion:
+  d_model: 64
+  n_attention_heads: 4
+  d_fusion: 64
+  readout: xyz
+quantum:
+  framework: pennylane
+  n_qubits: 8
+  n_layers: 3
+  encoding: angle
+  entanglement: circular
+  data_reuploading: true
+  diff_method: backprop
+  device_name: default.qubit
+  noise_type: ideal
+  noise_prob: 0.0
+training:
+  epochs: 50
+  warmup_epochs: 3
+  lr: 0.0001
+  head_lr: 0.001
+  backbone_lr: 1.0e-05
+  label_smoothing: 0.05
+  optimizer: adam
+  weight_decay: 0.0001
+  scheduler: cosine
+  early_stopping_patience: 6
+  grad_clip: 1.0
+baselines:
+- simple_cnn
+- resnet18
+- mobilenet_v2
+- classical_proposed
+evaluation:
+  metrics:
+  - accuracy
+  - precision
+  - recall
+  - f1_macro
+  - f1_weighted
+  - roc_auc_ovr
+  - specificity
+  n_runs_for_stats: 3
+logging:
+  save_checkpoints: true
+  log_every_n_steps: 10
+ablation_experiments:
+  qubit_counts:
+  - 2
+  - 4
+  - 6
+  layer_counts:
+  - 1
+  - 2
+  - 4
+  reuploading_options:
+  - true
+  - false
+  models:
+  - hybrid
+  representations:
+  - cnn
+  - gnn
+noise_experiments:
+  noise_types:
+  - ideal
+  - bit_flip
+  - phase_flip
+  - depolarizing
+  noise_probabilities:
+  - 0.0
+  - 0.01
+  - 0.05
+  - 0.1
+  models:
+  - hybrid
+  representations:
+  - cnn
+  - gnn
+explainability:
+  cnn:
+    method: gradcam
+    num_samples: 10
+  gnn:
+    num_samples: 10
+    epochs: 100
+    lr: 0.01
+cross_dataset:
+  dataset_pairs: []
+  source_datasets: []
+  target_datasets: []
+statistical_analysis:
+  primary_metric: accuracy
+  confidence_level: 0.95
+  metrics_to_analyze:
+  - accuracy
+  - f1_macro
+  - precision_macro
+  - recall_macro

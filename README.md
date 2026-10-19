@@ -162,6 +162,8 @@ GNN-only branch (weak standalone, kept for the fusion ablation comparison):
 python train.py --model hybrid --representation gnn --config configs/config.yaml
 ```
 
+The configured 50 epochs are a maximum, not a requirement to train every epoch. The classical and hybrid CNN runs both use validation-accuracy early stopping with the configured patience of 6 epochs; the longer limit allows a run to continue only while validation performance keeps improving.
+
 ### Error analysis / explainability
 ```powershell
 python experiments/explainability_errors.py --model classical_proposed --representation cnn --config configs/config.yaml
@@ -173,11 +175,11 @@ Finds and visualizes (Grad-CAM) every test-set misclassification within the glio
 
 Create a side-by-side figure using the same audited official-test images for the classical model and hybrid CNN-VQC:
 ```powershell
-python experiments/paired_gradcam_journal.py --seed 42 --config configs/config.yaml
+python experiments/paired_gradcam_journal.py --seed 42 --config results/epochs50/run_config.yaml
 ```
-The script uses `data/kaggle_test_unique_train_disjoint` and `results/tables/official_test_integrity_audit.csv` by default. For each true class, it deterministically selects the first both-models-correct example and one error example, prioritizing glioma↔meningioma confusions. It verifies the selected predictions and confidences against the saved seed-42 evaluation predictions and uses the configured evaluation preprocessing.
+The script uses the 50-epoch checkpoints and predictions under `results/epochs50/`, `data/kaggle_test_unique_train_disjoint`, and `results/tables/official_test_integrity_audit.csv` by default. It generates a separate image for each class, with up to four examples correctly classified by both models, ranked by hybrid confidence. No error examples are included. It verifies the selected predictions and confidences against the saved seed-42 evaluation predictions and uses the configured evaluation preprocessing.
 
-Outputs are written to `results/explainability/journal_paired_seed42/`: a PNG and PDF figure, plus CSV/JSON manifests recording selected filenames, true labels, predictions, confidence, selection rule, and preprocessing. Grad-CAM is computed for each model's predicted class; the hybrid heatmap explains gradients through its CNN feature extractor and is not a direct visualization of the VQC's internal computation.
+Outputs are written to `results/explainability/journal_paired_seed42/`: four class-specific PNG/PDF pairs, plus CSV/JSON manifests recording selected filenames, true labels, predictions, confidence, selection rule, and preprocessing. The dataset has no tumor masks or boxes, so these high-confidence, correctly classified cases are illustrative only and do not establish tumor-localization accuracy. Grad-CAM is computed for each model's predicted class; the hybrid heatmap reflects gradients through its CNN feature extractor and is not a direct visualization of the VQC's internal computation.
 
 ### Generate figures
 ```powershell
@@ -192,7 +194,7 @@ After exporting per-image predictions for the same models and test cohort, gener
 ```powershell
 python -m visualization.journal_figures
 ```
-Figures (PNG and PDF), captions/findings, and seed/per-class summary tables are written under `results/figures/journal/` and `results/tables/`. The current comparison uses the audited official test cohort and records the limitation that the classical model has only one completed seed.
+Figures (PNG and PDF), captions/findings, and seed/per-class/split-count tables are written under `results/figures/journal/` and `results/epochs50/tables/`. The generator uses the seed-42 50-epoch run and audited official test cohort. Since only one seed is available under this protocol, the comparison intentionally omits across-seed uncertainty intervals. Rerunning replaces the previous journal figures with outputs from the current epoch-50 artifacts.
 
 ---
 

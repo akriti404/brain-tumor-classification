@@ -1,0 +1,50 @@
+{
+  "accuracy": 0.9298921417565486,
+  "precision_macro": 0.9290677360504885,
+  "recall_macro": 0.92875402722004,
+  "f1_macro": 0.9286968709828902,
+  "f1_weighted": 0.92955740214053,
+  "confusion_matrix": [
+    [
+      293,
+      27,
+      0,
+      3
+    ],
+    [
+      14,
+      270,
+      15,
+      15
+    ],
+    [
+      1,
+      8,
+      305,
+      1
+    ],
+    [
+      1,
+      5,
+      1,
+      339
+    ]
+  ],
+  "specificity_macro": 0.9766761624812387,
+  "specificity_per_class": [
+    0.9835897435897436,
+    0.959349593495935,
+    0.9837232960325534,
+    0.9800420168067226
+  ],
+  "roc_auc_ovr": 0.9879698457327097,
+  "inference_time_sec": 6.251007556915283,
+  "n_test_samples": 1298,
+  "classes": [
+    "glioma",
+    "meningioma",
+    "notumor",
+    "pituitary"
+  ],
+  "checkpoint": "results\\epochs50\\checkpoints\\classical_proposed_seed42.pt"
+}

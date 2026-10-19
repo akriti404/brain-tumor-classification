@@ -25,10 +25,11 @@ from data.dataset import collect_samples, patient_level_split
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results"
-PREDICTIONS = RESULTS / "predictions" / "official_test"
+RUN_RESULTS = RESULTS / "epochs50"
+PREDICTIONS = RUN_RESULTS / "predictions" / "unique_test"
 FIGURES = RESULTS / "figures" / "journal"
 CLASSES = ["glioma", "meningioma", "notumor", "pituitary"]
-SEEDS = [1, 42, 7]
+SEEDS = [42]
 MODELS = {
     "classical_proposed": "Classical",
     "hybrid": "Hybrid CNN–VQC",
@@ -60,12 +61,11 @@ def _read_json(path: Path) -> dict:
 
 
 def _key_from_prediction_path(path: str) -> str:
-    normalized = path.replace("/", "\\")
-    marker = "data\\kaggle_test\\"
-    marker_index = normalized.lower().find(marker)
-    if marker_index < 0:
-        raise ValueError(f"Prediction path is not under data/kaggle_test: {path}")
-    return normalized[marker_index + len(marker):].lower()
+    parts = Path(path.replace("\\", "/")).parts
+    for index, part in enumerate(parts):
+        if part.lower() in CLASSES:
+            return "\\".join(parts[index:]).lower()
+    raise ValueError(f"Prediction path does not contain a recognized class: {path}")
 
 
 def _load_clean_predictions(model: str, seed: int, retained_paths: set[str]) -> dict:
@@ -130,7 +130,7 @@ def _save_figure(fig: plt.Figure, stem: str) -> None:
 
 
 def _load_split_counts() -> dict:
-    with (ROOT / "configs" / "config.yaml").open(encoding="utf-8") as file:
+    with (RUN_RESULTS / "run_config.yaml").open(encoding="utf-8") as file:
         cfg = yaml.safe_load(file)
     samples, classes = collect_samples(cfg["data"]["root"])
     train, val, internal_test, split_method = patient_level_split(
@@ -161,7 +161,7 @@ def _plot_dataset_splits(split_counts: dict, clean_counts: dict, full_counts: di
 
     x = np.arange(len(CLASSES))
     width = 0.15
-    fig, ax = plt.subplots(figsize=(9, 4.4))
+    fig, ax = plt.subplots(figsize=(10, 5.8))
     for index, (name, counts) in enumerate(zip(groups, group_counts)):
         values = [counts.get(class_name, 0) for class_name in CLASSES]
         bars = ax.bar(x + (index - 2) * width, values, width, label=name)
@@ -170,20 +170,25 @@ def _plot_dataset_splits(split_counts: dict, clean_counts: dict, full_counts: di
     ax.set_xticks(x, [name.replace("_", " ").title() for name in CLASSES])
     ax.set_ylabel("Images")
     ax.set_title("Dataset split counts by class")
-    ax.legend(frameon=False, ncol=3, fontsize=7)
-    ax.text(
-        0.01, -0.24,
-        "Internal holdout is reserved by the project split; the reported external evaluation uses the separate Kaggle test set. "
-        "Deduplicated cohort excludes 122 exact train–test overlaps and 10 duplicate test files.",
-        transform=ax.transAxes, fontsize=7, va="top", wrap=True,
+    ax.set_ylim(0, max(max(counts.values(), default=0) for counts in group_counts) * 1.12)
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(
+        handles, labels, loc="lower center", bbox_to_anchor=(0.5, 0.095),
+        frameon=False, ncol=3, fontsize=8, columnspacing=1.5,
     )
-    fig.tight_layout()
+    fig.text(
+        0.5, 0.025,
+        "Internal holdout is reserved by the project split. Model comparison uses the audited, "
+        "unique, train-disjoint official-test cohort.",
+        ha="center", va="bottom", fontsize=7,
+    )
+    fig.subplots_adjust(left=0.09, right=0.98, top=0.88, bottom=0.30)
     _save_figure(fig, "fig01_dataset_split_counts")
 
 
 def _plot_training_curves() -> None:
-    classical = _read_json(RESULTS / "logs" / "train_classical_proposed_seed42.json")
-    hybrid = _read_json(RESULTS / "logs" / "train_hybrid_seed42.json")
+    classical = _read_json(RUN_RESULTS / "logs" / "train_classical_proposed_seed42.json")
+    hybrid = _read_json(RUN_RESULTS / "logs" / "train_hybrid_seed42.json")
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.7))
 
     for model, log in (("classical_proposed", classical), ("hybrid", hybrid)):
@@ -202,7 +207,7 @@ def _plot_training_curves() -> None:
     for ax in axes:
         ax.grid(alpha=0.2)
         ax.legend(frameon=False, fontsize=7)
-    fig.suptitle("Training and validation curves (seed 42)")
+    fig.suptitle("Training and validation curves (50-epoch maximum, seed 42)")
     fig.tight_layout()
     _save_figure(fig, "fig02_training_curves_seed42")
 
@@ -245,34 +250,28 @@ def _plot_main_comparison(results: dict, summary: pd.DataFrame) -> None:
     for index, model in enumerate(("classical_proposed", "hybrid")):
         model_summary = summary[summary["model"] == model].set_index("metric")
         means = [model_summary.loc[metric, "mean"] for metric in metrics]
-        stds = [
-            model_summary.loc[metric, "sample_sd"]
-            if pd.notna(model_summary.loc[metric, "sample_sd"]) else 0.0
-            for metric in metrics
-        ]
         positions = x + (index - 0.5) * width
         bars = ax.bar(
-            positions, means, width, yerr=stds if model == "hybrid" else None,
-            capsize=4, color=COLORS[model], label=MODELS[model],
+            positions, means, width, color=COLORS[model], label=MODELS[model],
         )
         ax.bar_label(bars, labels=[f"{v:.3f}" for v in means], padding=3, fontsize=8)
         model_results = results[model]
         for metric_index, metric in enumerate(metrics):
             vals = [ _metrics(run)[metric] for run in model_results.values() ]
-            jitter = np.linspace(-0.035, 0.035, len(vals)) if len(vals) > 1 else [0]
             ax.scatter(
-                np.full(len(vals), positions[metric_index]) + jitter,
+                np.full(len(vals), positions[metric_index]),
                 vals, s=18, color="black", zorder=3,
             )
     ax.set_xticks(x, labels)
     ax.set_ylabel("Score")
     ax.set_ylim(0.75, 1.0)
-    ax.set_title("Matched test-set performance; error bars show seed SD")
+    ax.set_title("Matched official-test performance (seed 42)")
     ax.legend(frameon=False)
     ax.grid(axis="y", alpha=0.2)
     ax.text(
         0.01, -0.19,
-        "Hybrid: 3 seeds (1, 42, 7); classical: seed 42 only. No classical uncertainty interval is estimable yet.",
+        "Both models were trained with a 50-epoch maximum. Only seed 42 is available under this protocol; "
+        "across-seed uncertainty is not estimable and is not shown.",
         transform=ax.transAxes, fontsize=8, va="top",
     )
     fig.tight_layout()
@@ -374,12 +373,12 @@ def _plot_roc(seed42: dict) -> None:
 
 def _plot_efficiency(seed42: dict) -> None:
     train = {
-        model: _read_json(RESULTS / "logs" / f"train_{model}_seed42.json")
+        model: _read_json(RUN_RESULTS / "logs" / f"train_{model}_seed42.json")
         for model in ("classical_proposed", "hybrid")
     }
     eval_files = {
-        "classical_proposed": RESULTS / "logs" / "eval_classical_proposed_seed42.json",
-        "hybrid": RESULTS / "logs" / "eval_hybrid_seed42_full_1430_before_unique_cohort.json",
+        model: RUN_RESULTS / "logs" / f"eval_{model}_seed42.json"
+        for model in ("classical_proposed", "hybrid")
     }
     evaluation_seconds = {model: _read_json(path)["inference_time_sec"] for model, path in eval_files.items()}
     samples = {model: _read_json(path)["n_test_samples"] for model, path in eval_files.items()}
@@ -412,7 +411,7 @@ def _plot_efficiency(seed42: dict) -> None:
     fig.suptitle("Model performance and computational cost (seed 42)")
     fig.text(
         0.5, -0.01,
-        "Single-run CPU timings. Evaluation timing covers the full 1,430-image Kaggle test set, including data loading/transforms.",
+        "Single-run timings. Evaluation timing covers the same audited test cohort for both models, including data loading/transforms.",
         ha="center", fontsize=7,
     )
     fig.tight_layout()
@@ -469,38 +468,92 @@ def _write_notes_and_tables(
     full_counts: dict,
 ) -> None:
     FIGURES.mkdir(parents=True, exist_ok=True)
-    summary.to_csv(RESULTS / "tables" / "journal_seed_summary.csv", index=False)
-    per_class.to_csv(RESULTS / "tables" / "journal_seed42_per_class.csv", index=False)
+    tables_dir = RUN_RESULTS / "tables"
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    summary.to_csv(tables_dir / "journal_seed_summary.csv", index=False)
+    per_class.to_csv(tables_dir / "journal_seed42_per_class.csv", index=False)
+    split_rows = [
+        {"subset": subset, "class": class_name, "count": counts.get(class_name, 0)}
+        for subset, counts in (
+            *split_counts.items(),
+            ("Official test (all files)", full_counts),
+            ("Official test (audited cohort)", clean_counts),
+        )
+        for class_name in CLASSES
+    ]
+    pd.DataFrame(split_rows).to_csv(
+        tables_dir / "journal_dataset_split_counts.csv", index=False
+    )
 
     seed42 = {model: results[model][42] for model in results}
-    classical = _metrics(seed42["classical_proposed"])
-    hybrid = _metrics(seed42["hybrid"])
-    hybrid_summary = summary[summary["model"] == "hybrid"].set_index("metric")
+    metrics = {model: _metrics(result) for model, result in seed42.items()}
+    train_logs = {
+        model: _read_json(RUN_RESULTS / "logs" / f"train_{model}_seed42.json")
+        for model in ("classical_proposed", "hybrid")
+    }
+    eval_logs = {
+        model: _read_json(RUN_RESULTS / "logs" / f"eval_{model}_seed42.json")
+        for model in ("classical_proposed", "hybrid")
+    }
+    class_auc = {
+        model: {
+            name: roc_auc_score(
+                (result["y_true"] == name).astype(int),
+                result["y_prob"][:, class_index],
+            )
+            for class_index, name in enumerate(CLASSES)
+        }
+        for model, result in seed42.items()
+    }
+    class_index = {name: index for index, name in enumerate(CLASSES)}
+    matrices = {
+        model: confusion_matrix(
+            result["y_true"], result["y_pred"], labels=CLASSES
+        )
+        for model, result in seed42.items()
+    }
+    meningioma_support = int(matrices["classical_proposed"][class_index["meningioma"]].sum())
+    meningioma_to_glioma = {
+        model: int(matrix[class_index["meningioma"], class_index["glioma"]])
+        for model, matrix in matrices.items()
+    }
+    training_minutes = {
+        model: train_logs[model]["training_time_sec"] / 60
+        for model in train_logs
+    }
+    inference_ms_per_image = {
+        model: eval_logs[model]["inference_time_sec"] / eval_logs[model]["n_test_samples"] * 1000
+        for model in eval_logs
+    }
     clean_total = sum(clean_counts.values())
     raw_total = sum(full_counts.values())
+    classical = metrics["classical_proposed"]
+    hybrid = metrics["hybrid"]
+    class_auc_text = "; ".join(
+        f"{name}: {class_auc['hybrid'][name]:.3f}" for name in CLASSES
+    )
     notes = [
         "# Journal figures: captions and interpretation",
         "",
-        "Primary comparison uses the official Kaggle test set after excluding 122 exact train–test overlaps and 10 repeated test images (1,298 unique, train-disjoint images). The seed-42 model comparison uses per-image predictions filtered to this identical cohort.",
+        f"All model figures use seed-42 runs with a 50-epoch maximum and validation-accuracy early stopping. The primary comparison uses {clean_total:,} unique, train-disjoint images from the separate official Kaggle test folder, evaluated identically for both models. Earlier runs with a 30-epoch maximum are not pooled into this comparison.",
         "",
         "## Figures and findings",
         "",
-        f"1. **Dataset split counts** (`fig01_dataset_split_counts`): the Kaggle training directory contains {sum(split_counts['Training subset'].values()) + sum(split_counts['Validation'].values()) + sum(split_counts['Internal holdout'].values()):,} images, split into {sum(split_counts['Training subset'].values()):,} training, {sum(split_counts['Validation'].values()):,} validation, and {sum(split_counts['Internal holdout'].values()):,} internal holdout images. The separate official test folder contains {raw_total:,} files; the audited evaluation cohort contains {clean_total:,}. Class counts reveal the test cohort is not perfectly balanced.",
-        f"2. **Training curves** (`fig02_training_curves_seed42`): both seed-42 models reduce training and validation loss and improve accuracy. Best validation accuracy was {json.loads((RESULTS / 'logs' / 'train_classical_proposed_seed42.json').read_text())['best_val_acc']:.1%} for the classical model and {json.loads((RESULTS / 'logs' / 'train_hybrid_seed42.json').read_text())['best_val_acc']:.1%} for the hybrid. This shows optimization progress, not test-set superiority.",
-        f"3. **Primary performance and seed variation** (`fig03_primary_comparison`): on the matched cohort, seed-42 accuracy/macro F1 were {classical['accuracy']:.1%}/{classical['f1_macro']:.1%} for classical and {hybrid['accuracy']:.1%}/{hybrid['f1_macro']:.1%} for hybrid. Across hybrid seeds, accuracy was {hybrid_summary.loc['accuracy','mean']:.1%} ± {hybrid_summary.loc['accuracy','sample_sd']:.1%}, and macro F1 was {hybrid_summary.loc['f1_macro','mean']:.1%} ± {hybrid_summary.loc['f1_macro','sample_sd']:.1%} (mean ± sample SD, n=3). Classical has only one seed; no classical uncertainty interval or significance claim is supported.",
-        "4. **Row-normalized confusion matrices** (`fig04_confusion_matrices_seed42`): rows show recall distribution by true class and annotations show counts and row percentages. Meningioma-to-glioma errors decreased from 31/314 (9.9%) for classical to 16/314 (5.1%) for hybrid; glioma-to-meningioma errors were similar (36/323 vs. 35/323). These are single-seed descriptive results.",
-        "5. **Per-class metrics** (`fig05_per_class_metrics_seed42`): hybrid raised meningioma recall from 78.7% to 83.8% and F1 from 81.1% to 83.9%, while no-tumor recall was lower (95.6% vs. 97.8%). This illustrates why the overall macro score should be interpreted alongside class-specific trade-offs.",
-        "6. **One-vs-rest ROC curves** (`fig06_roc_curves_seed42`): curves show class-wise discrimination over thresholds. Hybrid AUC was 0.986 for glioma, 0.959 for meningioma, 0.995 for no-tumor, and 0.993 for pituitary; all class curves indicate strong ranking performance, but AUC does not replace thresholded metrics or calibration.",
-        "7. **Efficiency comparison** (`fig07_efficiency_seed42`): parameter counts are nearly identical (2.265M each), while seed-42 hybrid accuracy is 91.4% vs. 90.7% for classical. Hybrid training took 26.74 min vs. 20.38 min; evaluation averaged 5.53 vs. 4.74 ms/image. Timings are single-run and include data loading/transforms during the test loop; report as machine-specific measurements, not general hardware performance.",
-        "8. **Architecture schematic** (`fig08_architecture_comparison`): both models share the MobileNetV2 feature extractor and reducer. The classical head is replaced in the hybrid path by a VQC, whose measured expectations are concatenated with the reduced classical features before classification.",
-        "9. **Paired explainability panel**: generated separately by `python experiments/paired_gradcam_journal.py --seed 42 --config configs/config.yaml`; the matched original/classical/hybrid Grad-CAM figure and selected-case manifest are saved under `results/explainability/journal_paired_seed42/`. The selection includes both-model-correct examples and errors for every class, prioritizing glioma↔meningioma confusions. Grad-CAM reflects CNN-backbone gradients and is qualitative, not a visualization of the VQC's internal computation.",
+        f"1. **Dataset split counts** (`fig01_dataset_split_counts`): the project training dataset has {sum(split_counts['Training subset'].values()):,} train, {sum(split_counts['Validation'].values()):,} validation, and {sum(split_counts['Internal holdout'].values()):,} internal holdout images. The separate official test folder contains {raw_total:,} files; the audited evaluation cohort contains {clean_total:,}. Class-wise counts are in `results/epochs50/tables/journal_dataset_split_counts.csv`.",
+        f"2. **Training curves** (`fig02_training_curves_seed42`): best validation accuracy was {train_logs['classical_proposed']['best_val_acc']:.1%} for classical and {train_logs['hybrid']['best_val_acc']:.1%} for hybrid. They completed {len(train_logs['classical_proposed']['history']['train_loss'])} and {len(train_logs['hybrid']['history']['train_loss'])} epochs, respectively. The curves show optimization progress, not test-set superiority.",
+        f"3. **Primary performance** (`fig03_primary_comparison`): on the matched cohort, classical accuracy/macro F1 were {classical['accuracy']:.1%}/{classical['f1_macro']:.1%}; hybrid accuracy/macro F1 were {hybrid['accuracy']:.1%}/{hybrid['f1_macro']:.1%}. Only seed 42 was retrained under the 50-epoch protocol, so across-seed uncertainty is not estimable and is not shown.",
+        f"4. **Row-normalized confusion matrices** (`fig04_confusion_matrices_seed42`): rows show recall within the true class; each cell reports count and row percentage. Meningioma-to-glioma errors were {meningioma_to_glioma['classical_proposed']}/{meningioma_support} ({meningioma_to_glioma['classical_proposed'] / meningioma_support:.1%}) for classical and {meningioma_to_glioma['hybrid']}/{meningioma_support} ({meningioma_to_glioma['hybrid'] / meningioma_support:.1%}) for hybrid. These are single-seed descriptive results.",
+        "5. **Per-class metrics** (`fig05_per_class_metrics_seed42`): compare precision, recall, and F1 across all four classes to reveal class-specific trade-offs, including glioma/meningioma confusions that aggregate metrics can conceal.",
+        f"6. **One-vs-rest ROC curves** (`fig06_roc_curves_seed42`): curves show class-wise discrimination over thresholds on the audited cohort. Macro OvR AUC was {classical['roc_auc_ovr']:.3f} for classical and {hybrid['roc_auc_ovr']:.3f} for hybrid. Hybrid class-wise AUCs (glioma, meningioma, no-tumor, pituitary) were {class_auc_text}; AUC does not replace thresholded metrics or calibration analysis.",
+        f"7. **Efficiency comparison** (`fig07_efficiency_seed42`): parameter counts were {train_logs['classical_proposed']['param_report']['total_params']:,} for classical and {train_logs['hybrid']['param_report']['total_params']:,} for hybrid. Training took {training_minutes['classical_proposed']:.2f} and {training_minutes['hybrid']:.2f} minutes; evaluation averaged {inference_ms_per_image['classical_proposed']:.2f} and {inference_ms_per_image['hybrid']:.2f} ms/image, respectively. These are single-run measurements; evaluation time includes test data loading/transforms.",
+        "8. **Architecture schematic** (`fig08_architecture_comparison`): both models share the MobileNetV2 feature extractor and reducer. The hybrid path adds a VQC; its measured expectations are combined with reduced classical features before classification.",
+        "9. **Paired explainability panels**: four separate class-specific images use identical audited test images for both models, with up to four cases per class: high-confidence hybrid-correct examples and one error example. They use the epoch-50 checkpoints and prioritize glioma/meningioma confusions. The dataset has no tumor masks or boxes, so these are qualitative illustrations rather than validated lesion localization; hybrid Grad-CAM reflects CNN-backbone gradients, not the VQC's internal computation.",
         "",
         "## Statistical and reporting cautions",
         "",
-        "- Hybrid error bars in Figure 3 are sample SD across three training seeds, not a confidence interval. Classical currently has one seed.",
-        "- The historical 1,430-image results include exact train/test duplicates. The primary figures use the 1,298-image audited cohort instead.",
-        "- Do not claim statistically significant superiority from these figures. Complete classical runs for seeds 1 and 7, then perform a paired analysis using retained per-image predictions.",
-        "- The internal holdout is shown to document the configured train/validation/test split, but the primary model metrics use the separate official Kaggle test folder.",
+        "- Each model has one seed under the 50-epoch protocol. Figure 3 therefore has no across-seed standard deviation or confidence interval; do not infer statistical significance.",
+        f"- The raw official test folder contains {raw_total:,} files; the primary comparison uses the {clean_total:,}-image audited, unique, train-disjoint cohort.",
+        "- The internal holdout documents the configured project split; reported model comparison uses the separate official Kaggle test cohort.",
     ]
     (FIGURES / "figure_captions_and_findings.md").write_text(
         "\n".join(notes) + "\n", encoding="utf-8"

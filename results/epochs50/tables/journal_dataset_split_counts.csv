@@ -1,0 +1,21 @@
+subset,class,count
+Training subset,glioma,908
+Training subset,meningioma,994
+Training subset,notumor,1120
+Training subset,pituitary,984
+Validation,glioma,194
+Validation,meningioma,213
+Validation,notumor,240
+Validation,pituitary,211
+Internal holdout,glioma,195
+Internal holdout,meningioma,213
+Internal holdout,notumor,240
+Internal holdout,pituitary,211
+Official test (all files),glioma,324
+Official test (all files),meningioma,355
+Official test (all files),notumor,400
+Official test (all files),pituitary,351
+Official test (audited cohort),glioma,323
+Official test (audited cohort),meningioma,314
+Official test (audited cohort),notumor,315
+Official test (audited cohort),pituitary,346

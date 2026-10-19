@@ -1,0 +1,13 @@
+model,metric,n_seeds,mean,sample_sd,ci95_lower_across_seeds,ci95_upper_across_seeds,seed_values
+classical_proposed,accuracy,1,0.9298921417565486,,,,42:0.92989214
+classical_proposed,precision_macro,1,0.9290677360504885,,,,42:0.92906774
+classical_proposed,recall_macro,1,0.92875402722004,,,,42:0.92875403
+classical_proposed,f1_macro,1,0.9286968709828902,,,,42:0.92869687
+classical_proposed,f1_weighted,1,0.92955740214053,,,,42:0.92955740
+classical_proposed,roc_auc_ovr,1,0.9879698457327097,,,,42:0.98796985
+hybrid,accuracy,1,0.9352850539291218,,,,42:0.93528505
+hybrid,precision_macro,1,0.9346909616999697,,,,42:0.93469096
+hybrid,recall_macro,1,0.9342506739683312,,,,42:0.93425067
+hybrid,f1_macro,1,0.9343863146550222,,,,42:0.93438631
+hybrid,f1_weighted,1,0.935081953636879,,,,42:0.93508195
+hybrid,roc_auc_ovr,1,0.9865265942744098,,,,42:0.98652659
